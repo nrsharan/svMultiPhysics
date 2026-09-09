@@ -74,6 +74,8 @@ include(SimVascularFunctionCheckCompilerFlags)
 set(SV_USE_TRILINOS OFF CACHE BOOL "Build with the Trilinos linear algebra package")
 #set(SV_USE_PETSC OFF CACHE BOOL "Build with the PETSc linear algebra package")
 set(SV_PETSC_DIR "" CACHE STRING "Path to a local install of the PETSc linear algebra package")
+set(SV_USE_INTERFACE2 OFF CACHE BOOL "Build with the Interface2/AceGen element library (required for the deformation-diffusion equation)")
+set(Interface2_DIR "" CACHE STRING "Path to a local install of the Interface2/AceGen element library (its CMake config dir), if not already on CMAKE_PREFIX_PATH")
 set(ENABLE_COVERAGE OFF CACHE BOOL "Enable code coverage")
 set(ENABLE_ARRAY_INDEX_CHECKING OFF CACHE BOOL "Enable Array index checking")
 set(SV_LOCAL_VTK_PATH "" CACHE STRING "Path to a local build of VTK.")
@@ -137,6 +139,8 @@ ExternalProject_Add(svMultiPhysics
     -DSV_USE_TRILINOS:BOOL=${SV_USE_TRILINOS}
     #-DSV_USE_PETSC:BOOL=${SV_USE_PETSC}
     -DSV_PETSC_DIR:STRING=${SV_PETSC_DIR}
+    -DSV_USE_INTERFACE2:BOOL=${SV_USE_INTERFACE2}
+    -DInterface2_DIR:STRING=${Interface2_DIR}
     -DENABLE_COVERAGE:BOOL=${ENABLE_COVERAGE}
     -DENABLE_UNIT_TEST:BOOL=${ENABLE_UNIT_TEST}
     -DENABLE_ARRAY_INDEX_CHECKING:BOOL=${ENABLE_ARRAY_INDEX_CHECKING}
