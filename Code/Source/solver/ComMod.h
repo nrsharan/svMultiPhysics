@@ -23,6 +23,7 @@
 #include "Timer.h"
 #include "Vector.h"
 #include "ActiveStress.h"
+#include "ace_gen_cmm_smc_element.h"
 
 #include "DebugMsg.h"
 
@@ -407,6 +408,32 @@ class dmnType
 
     // Viscosity model for solids
     solidViscModelType solid_visc;
+
+    // Named material parameters for the Interface2/AceGen constrained-mixture
+    // active growth-and-remodeling deformation-diffusion element (CCB model),
+    // as read from the <CCBActiveCMMGandR> XML block. Keys are exact
+    // Interface2 domain-data names, e.g. "kEtaPlus". Only populated when
+    // 'phys' is EquationType::phys_def_diffu.
+    std::map<std::string,double> ccb_active_cmm_gandr_params;
+
+    // Interface2/AceGen integration code and sub-iteration tolerance for the
+    // CCB constrained-mixture element. Only meaningful when 'phys' is
+    // EquationType::phys_def_diffu.
+    int ccb_active_cmm_gandr_integration_code = 18;
+    double ccb_active_cmm_gandr_subiteration_tolerance = 1e-7;
+
+    // Element metadata (history length, Gauss point count, domain-data
+    // name order) queried once from Interface2 when this domain is read
+    // (read_ccb_active_cmm_gandr(), read_files.cpp). Only meaningful when
+    // 'phys' is EquationType::phys_def_diffu.
+    ace_gen_cmm_smc::ElementInfo ccb_active_cmm_gandr_info;
+
+    // ccb_active_cmm_gandr_params reordered to match
+    // ccb_active_cmm_gandr_info.domainDataNames -- this is the array
+    // actually passed to Interface2's compute() for every element in this
+    // domain. Built once (not per-element) since it depends only on the
+    // domain's parsed XML parameters, not on any element's nodal state.
+    std::vector<double> ccb_active_cmm_gandr_domain_data;
 };
 
 /// @brief Mesh adjacency (neighboring element for each element)
@@ -1681,6 +1708,31 @@ class ComMod {
 
     /// @brief Whether to use precomputed state-variable solutions
     bool usePrecomp = false;
+
+    /// @brief Per-element history/internal variables for the CCB
+    /// constrained-mixture active growth-and-remodeling deformation-diffusion
+    /// element (EquationType::phys_def_diffu), keyed by mesh name (mshType::name,
+    /// stable across remeshing, unlike a mesh's index or address). Each
+    /// entry is sized 'historyLengthPerElement * lM.nEl' (flat, element-major)
+    /// once the owning domain's ace_gen_cmm_smc::ElementInfo::historyLengthPerElement
+    /// is known (currently 39 per Gauss point); empty for meshes that don't
+    /// solve this equation. See def_diffu.cpp.
+    ///
+    /// 'ccbActiveCmmGandrHistory' holds the converged state from the last
+    /// successful time step (read at the start of every element evaluation);
+    /// 'ccbActiveCmmGandrHistoryUpdated' holds the trial state produced by
+    /// the current, not-yet-converged Newton iteration. def_diffu::commit_history()
+    /// copies Updated into History once per converged time step -- called
+    /// from main.cpp's iterate_solution(), alongside svMultiPhysics's own
+    /// Ao=An/Yo=Yn/Do=Dn commit.
+    ///
+    /// [TODO] Not yet included in svMultiPhysics's restart/checkpoint files
+    /// (see output.cpp/initialize.cpp's write_restart/init_from_bin and
+    /// recLn sizing) -- a restart will currently reinitialize this history
+    /// rather than resuming it.
+    std::map<std::string, std::vector<double>> ccbActiveCmmGandrHistory;
+    std::map<std::string, std::vector<double>> ccbActiveCmmGandrHistoryUpdated;
+
     //----- int members -----//
 
     /// @brief Current domain

@@ -4,6 +4,7 @@
 // The functions defined here replicate the Fortran functions defined in READFILES.f.
 
 #include "read_files.h"
+#include "ace_gen_cmm_smc_element.h"
 
 #include "Core/Exception.h"
 #include "FE/Common/FEException.h"
@@ -1424,6 +1425,30 @@ void read_active_stress(dmnType &lDmn, DomainParameters *domain_params) {
   }
 }
 
+/**
+ * @brief Read the named material parameters and Interface2/AceGen call
+ * settings for the CCB constrained-mixture active growth-and-remodeling
+ * deformation-diffusion element.
+ */
+void read_ccb_active_cmm_gandr(dmnType &lDmn, DomainParameters *domain_params) {
+  lDmn.ccb_active_cmm_gandr_params = domain_params->ccb_active_cmm_gandr.get_parameters();
+  lDmn.ccb_active_cmm_gandr_integration_code =
+      domain_params->ccb_active_cmm_gandr_integration_code.value();
+  lDmn.ccb_active_cmm_gandr_subiteration_tolerance =
+      domain_params->ccb_active_cmm_gandr_subiteration_tolerance.value();
+
+  // Query Interface2 once per domain (not per-element) for this element's
+  // history length, Gauss point count, and domain-data name order, then
+  // build the ordered domain-data array every element in this domain will
+  // reuse. If svMultiPhysics was not built with Interface2 support
+  // (SV_USE_INTERFACE2), this throws immediately here at input-file-read
+  // time rather than failing later during assembly.
+  lDmn.ccb_active_cmm_gandr_info =
+      ace_gen_cmm_smc::get_element_info(lDmn.ccb_active_cmm_gandr_integration_code);
+  lDmn.ccb_active_cmm_gandr_domain_data = ace_gen_cmm_smc::build_domain_data(
+      lDmn.ccb_active_cmm_gandr_info, lDmn.ccb_active_cmm_gandr_params);
+}
+
 //-------------
 // read_domain
 //-------------
@@ -1593,6 +1618,12 @@ void read_domain(Simulation* simulation, EquationParameters* eq_params, eqType& 
      // Read active stress parameters
      if (supports_active_stress(lEq.dmn[iDmn].phys)) {
        read_active_stress(lEq.dmn[iDmn], domain_params);
+     }
+
+     // Read parameters for the CCB constrained-mixture active
+     // growth-and-remodeling deformation-diffusion element.
+     if (lEq.dmn[iDmn].phys == EquationType::phys_def_diffu) {
+       read_ccb_active_cmm_gandr(lEq.dmn[iDmn], domain_params);
      }
 
      // Read material/constitutive model parameters for nonlinear

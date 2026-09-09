@@ -861,6 +861,23 @@ void Integrator::corrector()
       }
     }
 
+  } else if (eq.phys == EquationType::phys_def_diffu) {
+    // phys_def_diffu (see def_diffu.cpp's header comment) is assembled
+    // quasi-statically: its tangent is d(residual)/d(state) directly, not
+    // d(residual)/d(acceleration), so the Newton linear-solve unknown R IS
+    // the state (displacement/concentration) increment itself -- the usual
+    // Newmark beta*dt*dt/gam*dt relations below do not apply here. An/Yn
+    // are still updated for bookkeeping consistency (and zeroed every
+    // converged step by def_diffu::reset_dynamics(), so they never
+    // accumulate into the next step's predictor), but are not read by
+    // def_diffu.cpp.
+    for (int a = 0; a < tnNo; a++) {
+      for (int i = 0; i < e-s+1; i++) {
+        An(i+s,a) = An(i+s,a) - R(i,a);
+        Yn(i+s,a) = Yn(i+s,a) - R(i,a)*coef[0];
+        Dn(i+s,a) = Dn(i+s,a) - R(i,a);
+      }
+    }
   } else {
     for (int a = 0; a < tnNo; a++) {
       for (int i = 0; i < e-s+1; i++) {

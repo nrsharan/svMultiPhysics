@@ -4,6 +4,8 @@
 #include "FsilsLinearAlgebra.h"
 #include "fsils_api.hpp"
 #include "lhsa.h"
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
 
 /////////////////////////////////////////////////////////////////
@@ -119,9 +121,101 @@ void FsilsLinearAlgebra::solve(ComMod& com_mod, eqType& lEq, const Vector<int>& 
 {
   auto& lhs = com_mod.lhs;
   int dof = com_mod.dof;
-  auto& R = com_mod.R;      
+  auto& R = com_mod.R;
   auto& Val = com_mod.Val;
   auto preconditioner = lEq.linear_algebra_preconditioner;
+
+  // TEMPORARY DIAGNOSTIC (see /tmp or $DUMP_LINEAR_SYSTEM_DIR): dump the
+  // raw assembled system (before FSILS's own preconditioning/Krylov
+  // solve) for a specific call, so it can be solved exactly (e.g. via
+  // scipy) outside svMultiPhysics entirely, to check whether an exact
+  // solve gives a much better Newton step than GMRES's inexact one at
+  // the same iteration -- i.e. whether the linear solver itself, not the
+  // (already FD-verified exact) element tangent, is limiting Newton's
+  // convergence rate. Controlled by DUMP_LINEAR_SYSTEM_CALL (0-based call
+  // index to dump) and DUMP_LINEAR_SYSTEM_DIR (output directory).
+  if (const char* dumpCallEnv = std::getenv("DUMP_LINEAR_SYSTEM_CALL")) {
+    static int callCount = 0;
+    int dumpCall = std::atoi(dumpCallEnv);
+    if (callCount == dumpCall) {
+      std::string dir = std::getenv("DUMP_LINEAR_SYSTEM_DIR") ? std::getenv("DUMP_LINEAR_SYSTEM_DIR") : "/tmp";
+      std::string base = dir + "/linsys_call" + std::to_string(callCount);
+      std::ofstream fmeta(base + "_meta.txt");
+      fmeta << "nNo " << lhs.nNo << "\n";
+      fmeta << "nnz " << lhs.nnz << "\n";
+      fmeta << "dof " << dof << "\n";
+      fmeta.close();
+
+      std::ofstream frowptr(base + "_rowptr.txt");
+      for (int a = 0; a < lhs.nNo; a++) frowptr << lhs.rowPtr(0,a) << " " << lhs.rowPtr(1,a) << "\n";
+      frowptr.close();
+
+      std::ofstream fcolptr(base + "_colptr.txt");
+      for (int k = 0; k < lhs.nnz; k++) fcolptr << lhs.colPtr(k) << "\n";
+      fcolptr.close();
+
+      std::ofstream fmap(base + "_map.txt");
+      for (int a = 0; a < lhs.nNo; a++) fmap << lhs.map(a) << "\n";
+      fmap.close();
+
+      std::ofstream fval(base + "_val.txt");
+      fval.precision(17);
+      for (int idx = 0; idx < dof*dof; idx++) {
+        for (int k = 0; k < lhs.nnz; k++) fval << Val(idx,k) << " ";
+        fval << "\n";
+      }
+      fval.close();
+
+      std::ofstream fr(base + "_r.txt");
+      fr.precision(17);
+      for (int i = 0; i < dof; i++) {
+        for (int a = 0; a < lhs.nNo; a++) fr << R(i,a) << " ";
+        fr << "\n";
+      }
+      fr.close();
+
+      std::cerr << "[DUMP_LINEAR_SYSTEM] wrote " << base << "_*.txt (call " << callCount << ")\n";
+    }
+    callCount++;
+  }
+
+  // TEMPORARY DIAGNOSTIC: hot-swap GMRES's solution for this one call with
+  // an externally-precomputed EXACT solve of the exact same raw system
+  // (dumped above, solved via scipy in a separate script -- see
+  // solve_exact.py), then skip the real fsils_solve() call entirely. This
+  // lets svMultiPhysics's own (unmodified, correct) corrector/reassembly/
+  // convergence-reporting pipeline show the *actual* resulting nonlinear
+  // residual on the very next reported iteration, using an exact linear
+  // step instead of GMRES's inexact one -- without reimplementing any
+  // assembly, BC, or follower-load code. Controlled by
+  // OVERRIDE_SOLUTION_CALL (0-based call index to override) and
+  // OVERRIDE_SOLUTION_FILE (path to a dof x nNo text file, com_mod node
+  // ordering, matching the format DUMP_LINEAR_SYSTEM_CALL's "_r.txt"
+  // writes).
+  if (const char* overrideCallEnv = std::getenv("OVERRIDE_SOLUTION_CALL")) {
+    static int overrideCallCount = 0;
+    int overrideCall = std::atoi(overrideCallEnv);
+    if (overrideCallCount == overrideCall) {
+      const char* file = std::getenv("OVERRIDE_SOLUTION_FILE");
+      if (!file) {
+        throw std::runtime_error("[OVERRIDE_SOLUTION] OVERRIDE_SOLUTION_FILE not set");
+      }
+      std::ifstream fin(file);
+      if (!fin) {
+        throw std::runtime_error(std::string("[OVERRIDE_SOLUTION] cannot open ") + file);
+      }
+      for (int i = 0; i < dof; i++) {
+        for (int a = 0; a < lhs.nNo; a++) {
+          fin >> R(i,a);
+        }
+      }
+      std::cerr << "[OVERRIDE_SOLUTION] overrode solve() output at call " << overrideCallCount
+                << " from " << file << " (skipped real linear solve)\n";
+      overrideCallCount++;
+      return;
+    }
+    overrideCallCount++;
+  }
 
   fsi_linear_solver::fsils_solve(lhs, lEq.FSILS, dof, R, Val, preconditioner, incL, res);
 }

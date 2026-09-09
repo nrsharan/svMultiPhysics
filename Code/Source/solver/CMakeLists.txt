@@ -134,6 +134,23 @@ if(ENABLE_ARRAY_INDEX_CHECKING)
   ADD_DEFINITIONS(-DENABLE_ARRAY_INDEX_CHECKING)
 endif()
 
+# Build with the Interface2/AceGen element library, needed for the
+# 'deformation-diffusion' equation (EquationType::phys_def_diffu). Off by
+# default so that a default svMultiPhysics build does not require
+# Interface2 or its LAPACK/MKL/Accelerate numerical backend.
+#
+option(SV_USE_INTERFACE2 "Enable the Interface2/AceGen element library (required for the deformation-diffusion equation)" OFF)
+
+if(SV_USE_INTERFACE2)
+  # Point CMAKE_PREFIX_PATH or Interface2_DIR at your Interface2 install,
+  # e.g. -DCMAKE_PREFIX_PATH=/path/to/interface2/install
+  find_package(Interface2 CONFIG REQUIRED)
+  ADD_DEFINITIONS(-DSV_HAVE_INTERFACE2)
+  set(USE_INTERFACE2 1)
+else()
+  set(USE_INTERFACE2 0)
+endif()
+
 # svMultiPhysics requires LAPACK
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
@@ -213,6 +230,8 @@ set(CSRCS
   consts.h consts.cpp
   contact.h contact.cpp
   distribute.h distribute.cpp
+  ace_gen_cmm_smc_element.h ace_gen_cmm_smc_element.cpp
+  def_diffu.h def_diffu.cpp
   eq_assem.h eq_assem.cpp
   fluid.h fluid.cpp
   fsi.h fsi.cpp
@@ -330,6 +349,10 @@ if(USE_PETSC)
   target_link_libraries(${SV_MULTIPHYSICS_EXE} ${PETSC_LIBRARY_DIRS})
 endif()
 
+if(SV_USE_INTERFACE2)
+  target_link_libraries(${SV_MULTIPHYSICS_EXE} Interface2::interface2)
+endif()
+
 # unit tests and Google Test
 if(ENABLE_UNIT_TEST)
 
@@ -383,6 +406,10 @@ if(ENABLE_UNIT_TEST)
 
   if(USE_PETSC)
     target_link_libraries(run_all_unit_tests ${PETSC_LIBRARY_DIRS})
+  endif()
+
+  if(SV_USE_INTERFACE2)
+    target_link_libraries(run_all_unit_tests Interface2::interface2)
   endif()
 
   # libraries

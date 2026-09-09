@@ -11,6 +11,7 @@
 
 #include "cep.h"
 #include "cmm.h"
+#include "def_diffu.h"
 #include "fluid.h"
 #include "fsi.h"
 #include "heatf.h"
@@ -136,6 +137,13 @@ void b_assem_neu_bc(ComMod& com_mod, const faceType& lFa, const Vector<double>& 
 
         case EquationType::phys_CEP:
           cep::b_cep(com_mod, eNoN, w, N, h, lR);
+        break;
+
+        case EquationType::phys_def_diffu:
+          // Surface traction on the displacement components only, matching
+          // struct/ustruct's Neumann BC treatment (a dedicated
+          // concentration-flux boundary term is not yet implemented).
+          l_elas::b_l_elas(com_mod, eNoN, w, N, h, nV, lR);
         break;
 
         default:
@@ -440,6 +448,10 @@ void global_eq_assem(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, const 
 
     case EquationType::phys_stokes:
       stokes::construct_stokes(com_mod, lM, solutions);
+    break;
+
+    case EquationType::phys_def_diffu:
+      def_diffu::construct_def_diffu(com_mod, cep_mod, lM, solutions);
     break;
 
     default:

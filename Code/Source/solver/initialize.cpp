@@ -459,8 +459,13 @@ void initialize(Simulation* simulation, Vector<double>& timeP)
       dFlag = true;
     }
 
-    // For second order eqs. 
-    if (std::set<EquationType>{Equation_lElas, Equation_struct, Equation_shell, Equation_mesh}.count(eq.phys) != 0) {
+    // For second order eqs.
+    // phys_def_diffu is included here because its displacement dofs are
+    // genuinely second-order dynamics with a real mass matrix (the AceGen
+    // CCB element's own Task 1/2 "Mu"/"Rdyn" -- see def_diffu.cpp), unlike
+    // e.g. ustruct/CMM/fluid/stokes, whose dof=nsd+1 "extra" dof is a
+    // pressure-type Lagrange multiplier with no inertia of its own.
+    if (std::set<EquationType>{Equation_lElas, Equation_struct, Equation_shell, Equation_mesh, Equation_defdiff}.count(eq.phys) != 0) {
       eq.am = (2.0 - eq.roInf) / (1.0 + eq.roInf);
 
     // first order equations.

@@ -232,6 +232,9 @@ const std::map<std::string,EquationType> equation_name_to_type = {
     {"structural_velocity_pressure", EquationType::phys_ustruct},
     {"ustruct", EquationType::phys_ustruct},
 
+    {"deformation-diffusion", EquationType::phys_def_diffu},
+    {"coupled_deformation-diffusion", EquationType::phys_def_diffu},
+    
   };
 
 // Map from output type string to OutputType.

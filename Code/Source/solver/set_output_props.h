@@ -29,6 +29,7 @@ std::map<consts::OutputNameType, OutputProps> output_props_map =
 
   {OutputNameType::out_CGInv1,       std::make_tuple(OutputNameType::out_CGInv1,   0,  1,             "CG_Strain_Trace") },
   {OutputNameType::out_CGstrain,     std::make_tuple(OutputNameType::outGrp_C,     0,  com_mod.nsymd, "CG_Strain") },
+  {OutputNameType::out_concentration, std::make_tuple(OutputNameType::outGrp_D,    nsd, 1,           "Concentration") },
 
   {OutputNameType::out_defGrad,      std::make_tuple(OutputNameType::outGrp_F,      0, nsd*nsd,       "Def_grad") },
   {OutputNameType::out_displacement, std::make_tuple(OutputNameType::outGrp_D,      0, nsd,           "Displacement") },

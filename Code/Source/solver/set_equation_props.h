@@ -632,5 +632,46 @@ SetEquationPropertiesMapType set_equation_props = {
   read_ls(simulation, eq_params, SolverType::lSolver_GMRES, lEq);
 
 } },
+
+//----------------------------//
+// phys_deformation_diffusion //
+//----------------------------//
+//
+{consts::EquationType::phys_def_diffu, [](Simulation* simulation, EquationParameters* eq_params, eqType& lEq, EquationProps& propL,
+      EquationOutputs& outPuts, EquationNdop& nDOP) -> void
+{
+  using namespace consts;
+  auto& com_mod = simulation->get_com_mod();
+
+  lEq.phys = consts::EquationType::phys_def_diffu;
+
+  propL[0][0] = PhysicalProperyType::solid_density;
+  propL[1][0] = PhysicalProperyType::elasticity_modulus;
+  propL[2][0] = PhysicalProperyType::poisson_ratio;
+  propL[3][0] = PhysicalProperyType::f_x;
+  propL[4][0] = PhysicalProperyType::f_y;
+  if (simulation->com_mod.nsd == 3) {
+    propL[5][0] = PhysicalProperyType::f_z;
+  }
+
+  read_domain(simulation, eq_params, lEq, propL);
+
+  // The Interface2/AceGen CCB constrained-mixture element carries its own
+  // full set of material parameters (see CCBActiveCMMGandRParameters) and
+  // is read directly into each dmnType in read_domain()'s call to
+  // read_ccb_active_cmm_gandr(); 'propL' here only supplies the handful of
+  // generic svMultiPhysics domain properties (density, body force) that are
+  // not part of that named parameter set.
+
+  nDOP = {2, 2, 0, 0};
+  outPuts = {OutputNameType::out_displacement,
+             OutputNameType::out_concentration};
+
+  // Set solver parameters. The coupled displacement/concentration tangent
+  // is non-symmetric (Kuc != Kcu^T in general), so use GMRES as for
+  // phys_struct/phys_ustruct.
+  read_ls(simulation, eq_params, SolverType::lSolver_GMRES, lEq);
+
+} },
 };
 

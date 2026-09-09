@@ -1995,6 +1995,57 @@ ActiveStressParameters::get_parameters(const std::string &model_name) const {
 }
 
 //////////////////////////////////////////////////////////
+//              CCBActiveCMMGandRParameters              //
+//////////////////////////////////////////////////////////
+
+const std::string CCBActiveCMMGandRParameters::xml_element_name_ =
+    "CCBActiveCMMGandR";
+
+CCBActiveCMMGandRParameters::CCBActiveCMMGandRParameters() {
+  set_xml_element_name(xml_element_name_);
+}
+
+void CCBActiveCMMGandRParameters::set_values(
+    const tinyxml2::XMLElement* xml_elem) {
+  using namespace tinyxml2;
+
+  for (const XMLElement* item = xml_elem->FirstChildElement(); item != nullptr;
+       item = item->NextSiblingElement()) {
+    const std::string name = item->Value();
+    const char* text = item->GetText();
+
+    if (text == nullptr) {
+      svmp::raise<svmp::ParseException>(
+          "The " + xml_element_name_ + " parameter '" + name + "' has no value.");
+    }
+
+    try {
+      parameters_[name] = std::stod(text);
+    } catch (const std::exception&) {
+      svmp::raise<svmp::ParseException>(
+          "The " + xml_element_name_ + " parameter '" + name + "' value '" +
+          text + "' is not a number.");
+    }
+  }
+
+  value_set = true;
+}
+
+void CCBActiveCMMGandRParameters::print_parameters() const {
+  if (!value_set) {
+    return;
+  }
+
+  std::cout << "\n" << xml_element_name_ << "\n"
+            << "---------------------------------\n";
+
+  for (const auto& [name, value] : parameters_) {
+    std::cout << "  " << name << ": " << value << std::endl;
+  }
+}
+
+
+//////////////////////////////////////////////////////////
 //                  DomainParameters                    //
 //////////////////////////////////////////////////////////
 
@@ -2016,6 +2067,11 @@ DomainParameters::DomainParameters() {
                 anisotropic_conductivity);
   set_parameter("Backflow_stabilization_coefficient", 0.2, !required,
                 backflow_stabilization_coefficient);
+
+  set_parameter("Integration_code", 18, !required,
+                ccb_active_cmm_gandr_integration_code);
+  set_parameter("Subiteration_tolerance", 1e-7, !required,
+                ccb_active_cmm_gandr_subiteration_tolerance);
 
   set_parameter("Conductivity", 0.0, !required, conductivity);
   // set_parameter("Constitutive_model", "", !required, constitutive_model);
@@ -2097,6 +2153,8 @@ void DomainParameters::print_parameters() {
   fluid_viscosity.print_parameters();
 
   solid_viscosity.print_parameters();
+
+  ccb_active_cmm_gandr.print_parameters();
 }
 
 //------------
@@ -2147,6 +2205,11 @@ void DomainParameters::set_values(tinyxml2::XMLElement *domain_elem,
 
     if (name == ActiveStressParameters::xml_element_name) {
       active_stress.set_values(item);
+      item_found = true;
+    }
+
+    if (name == CCBActiveCMMGandRParameters::xml_element_name_) {
+      ccb_active_cmm_gandr.set_values(item);
       item_found = true;
     }
 
@@ -2711,6 +2774,9 @@ void EquationParameters::set_values(tinyxml2::XMLElement *eq_elem,
       // @todo[michelebucelli] The need to manually fall back onto the domain
       // parameters might be avoided with a bit of refactoring.
       domain->active_stress.set_values(item);
+
+    } else if (name == CCBActiveCMMGandRParameters::xml_element_name_) {
+      domain->ccb_active_cmm_gandr.set_values(item);
 
     } else if (name == LinearSolverParameters::xml_element_name_) {
       linear_solver.set_values(item);

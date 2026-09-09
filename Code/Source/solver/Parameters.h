@@ -1558,6 +1558,53 @@ protected:
   bool value_set = false;
 };
 
+/// @brief The CCBActiveCMMGandRParameters class stores the material
+/// parameters for the DeformationDiffusionConstrainedMixtureModel
+/// SmoothMuscleActiveGrowthReorientationTetrahedra3D10 (CCB constrained
+/// mixture active growth-and-remodeling) model, called through the
+/// Interface2/AceGen element.
+///
+/// Parameter names are not known ahead of time in this class: they mirror
+/// whatever domain-data names the AceGen-generated element reports at
+/// runtime (e.g. "kEtaPlus"), so any child XML element under
+/// <CCBActiveCMMGandR> is accepted and stored by name rather than
+/// validated against a fixed, hand-maintained list. It is the caller's
+/// responsibility (when building the element's domain-data array) to look
+/// up each name the element actually needs and fail clearly if it is
+/// missing.
+///
+/// \code {.xml}
+/// <CCBActiveCMMGandR>
+///   <kEtaPlus> 1.0 </kEtaPlus>
+///   <mEtaPlus> 1.0 </mEtaPlus>
+///   ...
+/// </CCBActiveCMMGandR>
+/// \endcode
+class CCBActiveCMMGandRParameters : public ParameterLists
+{
+public:
+  static const std::string xml_element_name_;
+
+  CCBActiveCMMGandRParameters();
+
+  /// Set the values of parameters in this object from an XML element.
+  void set_values(const tinyxml2::XMLElement* xml_elem);
+
+  /// Print the value of parameters.
+  void print_parameters() const;
+
+  /// Return whether this object was populated from the XML.
+  bool defined() const { return value_set; }
+
+  /// Material parameters explicitly supplied in the XML.
+  /// Keys are exact Interface2/AceGen names, e.g. "kEtaPlus".
+  const std::map<std::string, double>& get_parameters() const { return parameters_; }
+
+private:
+  bool value_set = false;
+  std::map<std::string, double> parameters_;
+};
+
 /// @brief The DomainParameters class stores parameters for the XML
 /// 'Domain' element to specify properties for solving equations.
 ///
@@ -1590,6 +1637,7 @@ class DomainParameters : public ParameterLists
     FluidViscosityParameters fluid_viscosity;
     SolidViscosityParameters solid_viscosity;
     ActiveStressParameters active_stress;
+    CCBActiveCMMGandRParameters ccb_active_cmm_gandr;
 
     /// Ionic model parameters. Keys are the model names, as registered in the
     /// @ref IonicModelFactory.
@@ -1601,6 +1649,12 @@ class DomainParameters : public ParameterLists
     Parameter<double> absolute_tolerance;
     VectorParameter<double> anisotropic_conductivity;
     Parameter<double> backflow_stabilization_coefficient;
+
+    /// Interface2/AceGen integration (quadrature) code for the CCB
+    /// constrained-mixture element, e.g. 18 (4 Gauss points).
+    Parameter<int> ccb_active_cmm_gandr_integration_code;
+    /// Sub-iteration tolerance passed to the Interface2/AceGen CCB element.
+    Parameter<double> ccb_active_cmm_gandr_subiteration_tolerance;
 
     Parameter<double> conductivity;
     //Parameter<std::string> constitutive_model_name;

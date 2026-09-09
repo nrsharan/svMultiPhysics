@@ -287,7 +287,8 @@ enum class EquationType
   phys_CMM = 209, 
   phys_CEP = 210,
   phys_ustruct = 211,  // Nonlinear elastodynamics using mixed VMS-stabilized formulation 
-  phys_stokes = 212
+  phys_stokes = 212,
+  phys_def_diffu = 213
 };
 
 constexpr auto Equation_CMM = EquationType::phys_CMM;
@@ -302,6 +303,7 @@ constexpr auto Equation_shell = EquationType::phys_shell;
 constexpr auto Equation_stokes = EquationType::phys_stokes;
 constexpr auto Equation_struct = EquationType::phys_struct;
 constexpr auto Equation_ustruct = EquationType::phys_ustruct;
+constexpr auto Equation_defdiff = EquationType::phys_def_diffu;
 
 extern const std::map<std::string,EquationType> equation_name_to_type;
 
@@ -380,7 +382,8 @@ enum class OutputNameType {
   out_fibStretchRate = 570,
   out_activeTensionFibers = 569,
   out_activeTensionSheets = 568,
-  out_activeTensionNormal = 567
+  out_activeTensionNormal = 567,
+  out_concentration = 566
 };
 
 /// @brief Simulation output file types. 
