@@ -49,8 +49,8 @@ set(CSRCS
 
 add_library(${lib} ${SV_LIBRARY_TYPE} ${CSRCS})
 
-target_link_libraries(${lib} ${MPI_LIBRARY} ${MPI_Fortran_LIBRARIES})
-#target_link_libraries(${lib} ${MPI_LIBRARY} ${MPI_Fortran_LIBRARIES} ${VTK_LIBRARIES})
+target_link_libraries(${lib} ${MPI_C_LIBRARIES} ${MPI_Fortran_LIBRARIES})
+#target_link_libraries(${lib} ${MPI_C_LIBRARIES} ${MPI_Fortran_LIBRARIES} ${VTK_LIBRARIES})
 
 # extra MPI libraries only if there are not set to NOT_FOUND or other null 
 if(SV_MPI_EXTRA_LIBRARY)
