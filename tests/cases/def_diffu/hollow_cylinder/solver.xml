@@ -185,10 +185,27 @@
         GMRES should converge in essentially one iteration if the linear
         system itself is correct. This equation's test meshes are small (a
         few thousand dof), so a direct solve is cheap here; this is a
-        validation step, not a scalable choice for larger meshes. -->
+        validation step, not a scalable choice for larger meshes. That
+        validation step worked (iterations 1-1/1-2 solved to machine
+        precision in 1 GMRES iteration each), but Newton then diverged on
+        iteration 1-3 (an undamped full Newton step overshot into an
+        unphysical state) and the matrix went singular by 1-5. Before
+        concluding this is purely a missing-line-search issue, switching
+        BACK to "fsils"/"rcs" here temporarily, not because rcs is a
+        better preconditioner, but to reuse the existing
+        DUMP_LINEAR_SYSTEM_CALL/DUMP_LINEAR_SYSTEM_DIR env-var hook
+        already in FsilsLinearAlgebra.cpp::solve() to dump the raw
+        assembled K/R for a direct, 1:1 comparison against FEDDLib's own
+        assembled system at the same physical state (first Newton
+        iteration, first load step). Assembly happens identically
+        upstream of whichever backend actually solves it, so this dumps
+        the exact same matrix trilinos_->K would otherwise hold, so no new
+        dump code is needed on this side. Revert to trilinos-amesos2 (or
+        whatever the next preconditioner experiment is) once this
+        comparison is done. -->
    <LS type="GMRES" >
-      <Linear_algebra type="trilinos" >
-         <Preconditioner> trilinos-amesos2 </Preconditioner>
+      <Linear_algebra type="fsils" >
+         <Preconditioner> rcs </Preconditioner>
       </Linear_algebra>
       <Tolerance> 1e-6 </Tolerance>
       <Max_iterations> 100 </Max_iterations>
