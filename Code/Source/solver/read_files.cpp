@@ -801,7 +801,7 @@ void read_bc(Simulation* simulation, EquationParameters* eq_params, eqType& lEq,
   lBc.flwP = false;
   if (utils::btest(lBc.bType, enum_int(BoundaryConditionType::bType_Neu)) ||
       utils::btest(lBc.bType, enum_int(BoundaryConditionType::bType_Coupled))) {
-    if (lEq.phys == Equation_struct || lEq.phys == Equation_ustruct) {
+    if (lEq.phys == Equation_struct || lEq.phys == Equation_ustruct || lEq.phys == Equation_defdiff) {
       lBc.flwP = bc_params->follower_pressure_load.value();
     }
   }

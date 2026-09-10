@@ -272,7 +272,13 @@ void b_neu_folw_p(ComMod& com_mod, const bcType& lBc, const faceType& lFa, const
           ustruct::b_ustruct_2d(com_mod, eNoN, w, N, Nx, dl, hl, nV, lR, lK, lKd);
         }
 
-      } else if (cPhys == EquationType::phys_struct) {
+      } else if (cPhys == EquationType::phys_struct || cPhys == EquationType::phys_def_diffu) {
+        // def_diffu shares struct's follower-pressure element formulation
+        // exactly: b_struct_3d/b_struct_2d read the displacement dof
+        // positions and stride via eq.s/com_mod.dof at runtime (not
+        // hardcoded to dof=3), so it is already correct for def_diffu's
+        // dof=4 (u,v,w,c) layout, where displacement occupies the same
+        // local components 0,1,2 that struct uses.
         if (nsd == 3) {
           struct_ns::b_struct_3d(com_mod, eNoN, w, N, Nx, dl, hl, nV, lR, lK);
         } else {
@@ -283,7 +289,7 @@ void b_neu_folw_p(ComMod& com_mod, const bcType& lBc, const faceType& lFa, const
 
     if (cPhys == EquationType::phys_ustruct) {
       ustruct::ustruct_do_assem(com_mod, eNoN, ptr, lKd, lK, lR);
-    } else if (cPhys == EquationType::phys_struct) {
+    } else if (cPhys == EquationType::phys_struct || cPhys == EquationType::phys_def_diffu) {
       eq.linear_algebra->assemble(com_mod, eNoN, ptr, lK, lR);
     }
   }

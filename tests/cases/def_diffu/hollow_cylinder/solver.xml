@@ -200,12 +200,33 @@
         iteration, first load step). Assembly happens identically
         upstream of whichever backend actually solves it, so this dumps
         the exact same matrix trilinos_->K would otherwise hold, so no new
-        dump code is needed on this side. Revert to trilinos-amesos2 (or
-        whatever the next preconditioner experiment is) once this
-        comparison is done. -->
+        dump code is needed on this side.
+
+        Comparison result: FEDDLib's tangent at this same physical state
+        (first Newton iteration, first load step) was ~16% asymmetric,
+        while svMultiPhysics's was symmetric to machine precision
+        (2.5e-16), despite both using the same follower-pressure inner-
+        wall BC. Traced to a real bug: read_files.cpp's lBc.flwP gate
+        (which physics types get real follower-pressure treatment) never
+        included Equation_defdiff, so def_diffu's "follower" pressure was
+        silently falling back to a fixed-direction dead load (no pressure-
+        stiffness/Nanson's-formula linearization at all), consistent
+        with the exact symmetry, and a well-known source of Newton
+        instability under inflating-surface loading (the fixed load
+        direction stops making physical sense as the wall balloons and
+        its true normal rotates away). Also, eq_assem.cpp's b_neu_folw_p
+        had no phys_def_diffu case at all. Both fixed: flwP gate now
+        includes Equation_defdiff, and b_neu_folw_p now routes
+        phys_def_diffu through struct_ns::b_struct_3d/b_struct_2d (the
+        same follower-pressure element formulation phys_struct uses,
+        already written generically against eq.s/com_mod.dof rather than
+        a hardcoded dof=3, so it needed no adaptation for def_diffu's
+        dof=4 layout). Switched back to "trilinos-amesos2" (exact direct
+        solve) to test whether this fix alone resolves the iteration-1-3
+        divergence, independent of any preconditioner/GMRES question. -->
    <LS type="GMRES" >
-      <Linear_algebra type="fsils" >
-         <Preconditioner> rcs </Preconditioner>
+      <Linear_algebra type="trilinos" >
+         <Preconditioner> trilinos-amesos2 </Preconditioner>
       </Linear_algebra>
       <Tolerance> 1e-6 </Tolerance>
       <Max_iterations> 100 </Max_iterations>
