@@ -940,18 +940,31 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   // concentration dof (confirmed against ace_gen_cmm_smc_element.cpp's
   // out.lR(3,va)=Rc[a] / out.lKState(i*dof+3,...)=Kuc convention); the
   // rest are the 3 elastic displacement dof.
-  std::vector<GO> uGids, cGids;
+  //
+  // uMap/cMap must NOT simply reuse the filtered-out subset of K's own
+  // (dof=4-strided) global indices: MueLu's "number of equations"
+  // amalgamation assumes a row map's GIDs are densely packed as
+  // node*numEquations+offset, and a stride-4-with-gaps numbering (K's
+  // original gid = nodeGID*dof+d, with d==dof-1 removed) breaks that
+  // assumption -- confirmed as the actual cause of a
+  // "vector::_M_fill_insert" throw from deep inside MueLu's u-block
+  // setup. Instead, assign each block its own densely-packed numbering
+  // computed directly from the shared underlying node id
+  // (nodeGID = oldGid/dof, valid globally regardless of ownership):
+  // newUGid = nodeGID*(dof-1)+d (d in [0,dof-2]), newCGid = nodeGID.
+  std::vector<GO> uGidsNew, cGidsNew;
   std::vector<LO> uLocalToFullLocal, cLocalToFullLocal;
   // Per-row capacity bounds for uMatrix/cMatrix below, in the same local-row
-  // order as uGids/cGids (i.e. uMap/cMap's local ordering). Using each row's
-  // full (unfiltered) nnz count in K as its bound is always sufficient --
-  // block-filtering only ever drops entries, never adds them -- and this
-  // Trilinos version enforces the constructor's per-row hint as a hard,
-  // non-growable capacity rather than a resizable estimate (a fixed
-  // guess of 50 was observed to be too small: one row needed 66).
+  // order as uGidsNew/cGidsNew (i.e. uMap/cMap's local ordering). Using
+  // each row's full (unfiltered) nnz count in K as its bound is always
+  // sufficient -- block-filtering only ever drops entries, never adds
+  // them -- and this Trilinos version enforces the constructor's per-row
+  // hint as a hard, non-growable capacity rather than a resizable
+  // estimate (a fixed guess of 50 was observed to be too small: one row
+  // needed 66).
   std::vector<size_t> uRowNnz, cRowNnz;
-  uGids.reserve(numLocalDofs);
-  cGids.reserve(numLocalDofs);
+  uGidsNew.reserve(numLocalDofs);
+  cGidsNew.reserve(numLocalDofs);
   uLocalToFullLocal.reserve(numLocalDofs);
   cLocalToFullLocal.reserve(numLocalDofs);
   uRowNnz.reserve(numLocalDofs);
@@ -961,16 +974,17 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   {
     GO gid = fullMap->getGlobalElement(lid);
     int d = static_cast<int>(gid % dof);
+    GO nodeGID = gid / dof;
     size_t numEntries = K->getNumEntriesInGlobalRow(gid);
     if (d == dof - 1)
     {
-      cGids.push_back(gid);
+      cGidsNew.push_back(nodeGID);
       cLocalToFullLocal.push_back(lid);
       cRowNnz.push_back(numEntries);
     }
     else
     {
-      uGids.push_back(gid);
+      uGidsNew.push_back(nodeGID * (dof - 1) + d);
       uLocalToFullLocal.push_back(lid);
       uRowNnz.push_back(numEntries);
     }
@@ -978,10 +992,10 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
 
   Teuchos::RCP<const Tpetra_Map> uMap = Teuchos::rcp(new Tpetra_Map(
       Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(),
-      Teuchos::arrayView(uGids.data(), uGids.size()), fullMap->getIndexBase(), trilinos_->comm));
+      Teuchos::arrayView(uGidsNew.data(), uGidsNew.size()), fullMap->getIndexBase(), trilinos_->comm));
   Teuchos::RCP<const Tpetra_Map> cMap = Teuchos::rcp(new Tpetra_Map(
       Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(),
-      Teuchos::arrayView(cGids.data(), cGids.size()), fullMap->getIndexBase(), trilinos_->comm));
+      Teuchos::arrayView(cGidsNew.data(), cGidsNew.size()), fullMap->getIndexBase(), trilinos_->comm));
 
   // Extract the u-block and c-block sub-matrices from K, row by row,
   // keeping only entries whose column also belongs to the same block
@@ -1001,7 +1015,9 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   {
     GO gid = fullMap->getGlobalElement(lid);
     int d = static_cast<int>(gid % dof);
+    GO nodeGID = gid / dof;
     bool isU = (d != dof - 1);
+    GO newRowGid = isU ? (nodeGID * (dof - 1) + d) : nodeGID;
 
     size_t numEntries = K->getNumEntriesInGlobalRow(gid);
     if (numEntries > rowIndices.extent(0))
@@ -1012,25 +1028,31 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
     size_t numCopied = 0;
     K->getGlobalRowCopy(gid, rowIndices, rowValues, numCopied);
 
+    // Columns must be remapped through the same old->new renumbering as
+    // the rows -- uMatrix/cMatrix are indexed entirely in the new, densely
+    // packed numbering, never in K's original stride-4 numbering.
     Teuchos::Array<GO> blockCols;
     Teuchos::Array<Scalar_d> blockVals;
     blockCols.reserve(numCopied);
     blockVals.reserve(numCopied);
     for (size_t k = 0; k < numCopied; ++k)
     {
-      int colD = static_cast<int>(rowIndices(k) % dof);
+      GO colGid = rowIndices(k);
+      int colD = static_cast<int>(colGid % dof);
+      GO colNodeGID = colGid / dof;
       bool colIsU = (colD != dof - 1);
       if (colIsU == isU)
       {
-        blockCols.push_back(rowIndices(k));
+        GO newColGid = colIsU ? (colNodeGID * (dof - 1) + colD) : colNodeGID;
+        blockCols.push_back(newColGid);
         blockVals.push_back(rowValues(k));
       }
     }
 
     if (isU)
-      uMatrix->insertGlobalValues(gid, blockCols(), blockVals());
+      uMatrix->insertGlobalValues(newRowGid, blockCols(), blockVals());
     else
-      cMatrix->insertGlobalValues(gid, blockCols(), blockVals());
+      cMatrix->insertGlobalValues(newRowGid, blockCols(), blockVals());
   }
 
   // Each stage below is fenced with its own try/catch and rethrown with a
