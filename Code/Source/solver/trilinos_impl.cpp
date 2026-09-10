@@ -665,6 +665,7 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
 
   if (trilinos_->MueluPrec != Teuchos::null) trilinos_->MueluPrec = Teuchos::null;
   if (trilinos_->ifpackPrec != Teuchos::null) trilinos_->ifpackPrec = Teuchos::null;
+  if (trilinos_->blockJacobiPrec != Teuchos::null) trilinos_->blockJacobiPrec = Teuchos::null;
 
   trilinos_->K = Teuchos::null;
 
@@ -730,6 +731,11 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
     setMueLuPreconditioner(trilinos_->MueluPrec, trilinos_->K);
     BelosProblem->setLeftPrec(trilinos_->MueluPrec);
     return;
+  } else if (precondType == TRILINOS_BLOCKJACOBI_UC_PRECONDITIONER) {
+    checkDiagonalIsZero(trilinos_);
+    setBlockJacobiUCPreconditioner(trilinos_, trilinos_->blockJacobiPrec);
+    BelosProblem->setLeftPrec(trilinos_->blockJacobiPrec);
+    return;
   } else {
     throw std::runtime_error("[ERROR Trilinos] Unsupported preconditioner type.");
   }
@@ -749,7 +755,7 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
  * https://trilinos.github.io/pdfs/mueluguide.pdf
  */
 void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner> &MueLuPrec,
-                            const Teuchos::RCP<Tpetra_CrsMatrix> &A)
+                            const Teuchos::RCP<Tpetra_CrsMatrix> &A, int numEquations)
 {
   // MueLuPrec is now a Tpetra::Operator that can be plug into BelosProblem
   std::string optionsFile = "mueluOptions.xml";
@@ -764,7 +770,11 @@ void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner> &MueLuPrec,
 
   // Problem type
   mueluParams.set("problem: type", "unknown"); // FSI is generally nonsymmetric
-  mueluParams.set("number of equations", dof); // dof for this equation
+  // Caller can override the "number of equations" MueLu amalgamates by --
+  // this matters when A is a sub-block of a larger monolithic matrix (see
+  // setBlockJacobiUCPreconditioner) whose own dof-per-node count differs
+  // from the equation's global dof.
+  mueluParams.set("number of equations", (numEquations > 0) ? numEquations : dof);
 
   // Aggregation
   mueluParams.set("aggregation: type", "uncoupled");
@@ -820,13 +830,15 @@ void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner> &MueLuPrec,
 // ----------------------------------------------------------------------------
 /**
  * This routine is to be used with preconditioners such as BlockJacobi/ILU/ILUT
- * which require 1s on the diagonal
+ * which require 1s on the diagonal. Operates on an arbitrary matrix (used
+ * both for the full monolithic K and for the sub-block matrices built in
+ * setBlockJacobiUCPreconditioner).
  */
-void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_)
+void checkDiagonalIsZero(const Teuchos::RCP<Tpetra_CrsMatrix> &A)
 {
-  Teuchos::RCP<const Tpetra_Map> rowMap = trilinos_->K->getRowMap();
+  Teuchos::RCP<const Tpetra_Map> rowMap = A->getRowMap();
   Tpetra_Vector diagonal(rowMap);
-  trilinos_->K->getLocalDiagCopy(diagonal);
+  A->getLocalDiagCopy(diagonal);
   bool isZeroDiag = false;
   auto diagData = diagonal.getLocalViewHost(Tpetra::Access::ReadWrite);
   for (size_t i = 0; i < diagData.extent(0); ++i)
@@ -837,9 +849,193 @@ void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_)
       isZeroDiag = true;
     }
   }
-  Tpetra::replaceDiagonalCrsMatrix(*trilinos_->K, diagonal);
+  Tpetra::replaceDiagonalCrsMatrix(*A, diagonal);
 
-} // void checkDiagonalIsZero()
+} // void checkDiagonalIsZero(A)
+
+void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_)
+{
+  checkDiagonalIsZero(trilinos_->K);
+} // void checkDiagonalIsZero(trilinos_)
+
+// ----------------------------------------------------------------------------
+/**
+ * Applies the block-Jacobi preconditioner: split X into its u-block and
+ * c-block parts (via the precomputed local-index correspondence -- purely
+ * local re-indexing, no communication needed, since uMap_/cMap_ partition
+ * the exact same set of locally-owned dof as fullMap_), apply each
+ * sub-preconditioner independently, and recombine. See the class-level
+ * comment in trilinos_impl.h for why this block split is exact (not just
+ * approximate) for this equation.
+ */
+void BlockJacobiUCTpetraOperator::apply(const Tpetra_MultiVector& X, Tpetra_MultiVector& Y,
+    Teuchos::ETransp mode, Scalar_d alpha, Scalar_d beta) const
+{
+  const size_t numVecs = X.getNumVectors();
+
+  Teuchos::RCP<Tpetra_MultiVector> Xu = Teuchos::rcp(new Tpetra_MultiVector(uMap_, numVecs));
+  Teuchos::RCP<Tpetra_MultiVector> Xc = Teuchos::rcp(new Tpetra_MultiVector(cMap_, numVecs));
+  Teuchos::RCP<Tpetra_MultiVector> Yu = Teuchos::rcp(new Tpetra_MultiVector(uMap_, numVecs));
+  Teuchos::RCP<Tpetra_MultiVector> Yc = Teuchos::rcp(new Tpetra_MultiVector(cMap_, numVecs));
+
+  {
+    auto Xview = X.getLocalViewHost(Tpetra::Access::ReadOnly);
+    auto Xuview = Xu->getLocalViewHost(Tpetra::Access::ReadWrite);
+    auto Xcview = Xc->getLocalViewHost(Tpetra::Access::ReadWrite);
+    for (size_t j = 0; j < numVecs; ++j)
+    {
+      for (size_t k = 0; k < uLocalToFullLocal_.size(); ++k)
+        Xuview(k, j) = Xview(uLocalToFullLocal_[k], j);
+      for (size_t k = 0; k < cLocalToFullLocal_.size(); ++k)
+        Xcview(k, j) = Xview(cLocalToFullLocal_[k], j);
+    }
+  }
+
+  uPrec_->apply(*Xu, *Yu);
+  cPrec_->apply(*Xc, *Yc);
+
+  Teuchos::RCP<Tpetra_MultiVector> Ytmp = Teuchos::rcp(new Tpetra_MultiVector(fullMap_, numVecs));
+  {
+    auto Ytmpview = Ytmp->getLocalViewHost(Tpetra::Access::ReadWrite);
+    auto Yuview = Yu->getLocalViewHost(Tpetra::Access::ReadOnly);
+    auto Ycview = Yc->getLocalViewHost(Tpetra::Access::ReadOnly);
+    for (size_t j = 0; j < numVecs; ++j)
+    {
+      for (size_t k = 0; k < uLocalToFullLocal_.size(); ++k)
+        Ytmpview(uLocalToFullLocal_[k], j) = Yuview(k, j);
+      for (size_t k = 0; k < cLocalToFullLocal_.size(); ++k)
+        Ytmpview(cLocalToFullLocal_[k], j) = Ycview(k, j);
+    }
+  }
+
+  Y.update(alpha, *Ytmp, beta);
+} // BlockJacobiUCTpetraOperator::apply
+
+// ----------------------------------------------------------------------------
+/**
+ * Builds a genuine global 2x2 block-Jacobi preconditioner for the
+ * deformation-diffusion equation, splitting the monolithic interleaved
+ * (u1,v1,w1,c1,u2,v2,w2,c2,...) matrix into a u-block (3 elastic dof/node,
+ * preconditioned with MueLu using the physically correct "number of
+ * equations"=3) and a c-block (1 concentration dof/node, preconditioned
+ * with simple Gauss-Seidel relaxation). See BlockJacobiUCTpetraOperator's
+ * class comment (trilinos_impl.h) for the full rationale.
+ */
+void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
+  Teuchos::RCP<Tpetra_Operator>& blockJacobiPrec)
+{
+  const Teuchos::RCP<Tpetra_CrsMatrix>& K = trilinos_->K;
+  Teuchos::RCP<const Tpetra_Map> fullMap = trilinos_->Map;
+  const LO numLocalDofs = static_cast<LO>(fullMap->getLocalNumElements());
+
+  // Classify each locally-owned dof by its position within a node's dof
+  // block (gid % dof): the last component (d == dof-1) is the
+  // concentration dof (confirmed against ace_gen_cmm_smc_element.cpp's
+  // out.lR(3,va)=Rc[a] / out.lKState(i*dof+3,...)=Kuc convention); the
+  // rest are the 3 elastic displacement dof.
+  std::vector<GO> uGids, cGids;
+  std::vector<LO> uLocalToFullLocal, cLocalToFullLocal;
+  uGids.reserve(numLocalDofs);
+  cGids.reserve(numLocalDofs);
+  uLocalToFullLocal.reserve(numLocalDofs);
+  cLocalToFullLocal.reserve(numLocalDofs);
+
+  for (LO lid = 0; lid < numLocalDofs; ++lid)
+  {
+    GO gid = fullMap->getGlobalElement(lid);
+    int d = static_cast<int>(gid % dof);
+    if (d == dof - 1)
+    {
+      cGids.push_back(gid);
+      cLocalToFullLocal.push_back(lid);
+    }
+    else
+    {
+      uGids.push_back(gid);
+      uLocalToFullLocal.push_back(lid);
+    }
+  }
+
+  Teuchos::RCP<const Tpetra_Map> uMap = Teuchos::rcp(new Tpetra_Map(
+      Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(),
+      Teuchos::arrayView(uGids.data(), uGids.size()), fullMap->getIndexBase(), trilinos_->comm));
+  Teuchos::RCP<const Tpetra_Map> cMap = Teuchos::rcp(new Tpetra_Map(
+      Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(),
+      Teuchos::arrayView(cGids.data(), cGids.size()), fullMap->getIndexBase(), trilinos_->comm));
+
+  // Extract the u-block and c-block sub-matrices from K, row by row,
+  // keeping only entries whose column also belongs to the same block
+  // (any Kuc/Kcu entries are dropped -- exact when they are truly zero,
+  // as they are whenever this equation's active/growth/reorientation
+  // mechanisms are switched off; a standard block-Jacobi approximation
+  // otherwise).
+  Teuchos::RCP<Tpetra_CrsMatrix> uMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(uMap, size_t(50)));
+  Teuchos::RCP<Tpetra_CrsMatrix> cMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(cMap, size_t(50)));
+
+  Teuchos::Array<GO> rowIndices(50);
+  Teuchos::Array<Scalar_d> rowValues(50);
+
+  for (LO lid = 0; lid < numLocalDofs; ++lid)
+  {
+    GO gid = fullMap->getGlobalElement(lid);
+    int d = static_cast<int>(gid % dof);
+    bool isU = (d != dof - 1);
+
+    size_t numEntries = K->getNumEntriesInGlobalRow(gid);
+    if (numEntries > static_cast<size_t>(rowIndices.size()))
+    {
+      rowIndices.resize(numEntries);
+      rowValues.resize(numEntries);
+    }
+    size_t numCopied = 0;
+    K->getGlobalRowCopy(gid, rowIndices(), rowValues(), numCopied);
+
+    Teuchos::Array<GO> blockCols;
+    Teuchos::Array<Scalar_d> blockVals;
+    blockCols.reserve(numCopied);
+    blockVals.reserve(numCopied);
+    for (size_t k = 0; k < numCopied; ++k)
+    {
+      int colD = static_cast<int>(rowIndices[k] % dof);
+      bool colIsU = (colD != dof - 1);
+      if (colIsU == isU)
+      {
+        blockCols.push_back(rowIndices[k]);
+        blockVals.push_back(rowValues[k]);
+      }
+    }
+
+    if (isU)
+      uMatrix->insertGlobalValues(gid, blockCols(), blockVals());
+    else
+      cMatrix->insertGlobalValues(gid, blockCols(), blockVals());
+  }
+
+  uMatrix->fillComplete(uMap, uMap);
+  cMatrix->fillComplete(cMap, cMap);
+
+  checkDiagonalIsZero(uMatrix);
+  checkDiagonalIsZero(cMatrix);
+
+  // u block: MueLu, with the physically correct "number of equations"=3.
+  Teuchos::RCP<Tpetra_Operator> uPrec;
+  setMueLuPreconditioner(uPrec, uMatrix, dof - 1);
+
+  // c block: small, diagonally-dominant scalar diffusion operator --
+  // Gauss-Seidel relaxation is more than sufficient.
+  Ifpack2::Factory factory;
+  Teuchos::RCP<Ifpack2_Preconditioner> cPrec = factory.create<Tpetra_CrsMatrix>("RELAXATION", cMatrix);
+  Teuchos::ParameterList cPrecParams;
+  cPrecParams.set("relaxation: type", "Gauss-Seidel");
+  cPrecParams.set("relaxation: sweeps", 2);
+  cPrec->setParameters(cPrecParams);
+  cPrec->initialize();
+  cPrec->compute();
+
+  blockJacobiPrec = Teuchos::rcp(new BlockJacobiUCTpetraOperator(
+      fullMap, uMap, cMap, uLocalToFullLocal, cLocalToFullLocal, uPrec, cPrec));
+
+} // setBlockJacobiUCPreconditioner
 
 // ----------------------------------------------------------------------------
 /**

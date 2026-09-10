@@ -147,22 +147,33 @@
 
    <!-- FSILS's own "rcs" preconditioner (diagonal row/column scaling) was
         verified to reduce this system's raw condition number from ~1.3e9
-        to ~4.5e5, which is still far too large for GMRES to resolve
-        within a practical iteration budget; confirmed the structural
-        block alone (with the decoupled diffusion block removed entirely)
-        already has this same ~5e5 conditioning, so it's intrinsic to the
-        large-strain anisotropic CCB tangent itself, not something a
-        diagonal-only preconditioner can fix. Switched to the Trilinos
-        backend with "trilinos-ml" (MueLu algebraic multigrid), the
-        preconditioner svMultiPhysics's own docs (Code/Source/solver/
-        README-trilinos.md) recommend for displacement-based structural
-        problems; requires building with -DSV_USE_TRILINOS=ON and
-        -DCMAKE_PREFIX_PATH=<path-to-trilinos>/lib/cmake/Trilinos. If
-        MueLu isn't enabled in a given Trilinos install, "trilinos-ilut"
-        or "trilinos-riluk0" are the next things to try. -->
+        to ~4.5e5, still far too large for GMRES within a practical
+        iteration budget. "trilinos-ml" (MueLu AMG) genuinely engaged
+        (confirmed via its own verbose parameter dump) but still didn't
+        converge in 100 iterations. Root cause: svMultiPhysics assembles
+        this equation as a single monolithic matrix with dof=4 interleaved
+        per node (u1,v1,w1,c1,u2,...), not as separate Kuu/Kuc/Kcu/Kcc
+        blocks (confirmed directly in trilinos_lhs_create's globalDofGIDs
+        construction), so MueLu's "number of equations"=4 amalgamation
+        wrongly assumes all 4 dof/node are of uniform physical type when
+        building aggregates/nullspace; wrong here, since Kuc/Kcu are
+        exactly zero for this passive test (all active/growth/
+        reorientation mechanisms off) and dof 0-2 (elastic, translational
+        nullspace) share nothing with dof 3 (unrelated scalar diffusion).
+        "trilinos-ilut" (tried next) was worse, not better; ILU's local
+        factorization has no multilevel correction, so it handled the
+        ~8-9 order-of-magnitude scale gap between the two blocks even
+        worse than AMG did. Switched to "trilinos-blockjacobi-uc": a
+        custom, genuinely block-structured preconditioner (see
+        BlockJacobiUCTpetraOperator / setBlockJacobiUCPreconditioner in
+        trilinos_impl.h/.cpp) that extracts the true u (3 elastic dof/
+        node) and c (1 concentration dof/node) sub-matrices and applies
+        MueLu (now with the physically correct "number of equations"=3)
+        to u and simple Gauss-Seidel to c independently; exact, not
+        approximate, block-Jacobi given Kuc=Kcu=0 here. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
-         <Preconditioner> trilinos-ml </Preconditioner>
+         <Preconditioner> trilinos-blockjacobi-uc </Preconditioner>
       </Linear_algebra>
       <Tolerance> 1e-6 </Tolerance>
       <Max_iterations> 100 </Max_iterations>

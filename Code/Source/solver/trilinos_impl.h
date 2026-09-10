@@ -115,6 +115,7 @@ using MueLu_Preconditioner = Tpetra_Operator;
 #define TRILINOS_RILUK0_PRECONDITIONER 706
 #define TRILINOS_RILUK1_PRECONDITIONER 707
 #define TRILINOS_ML_PRECONDITIONER 708
+#define TRILINOS_BLOCKJACOBI_UC_PRECONDITIONER 712
 
 /// @brief Initialize all Epetra types we need separate from Fortran
 struct Trilinos
@@ -134,8 +135,69 @@ struct Trilinos
 
   Teuchos::RCP<Tpetra_Operator> MueluPrec;
   Teuchos::RCP<Ifpack2_Preconditioner> ifpackPrec;
-  Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr) {}
+  Teuchos::RCP<Tpetra_Operator> blockJacobiPrec;
+  Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr), blockJacobiPrec(nullptr) {}
 };
+
+/**
+ * \class BlockJacobiUCTpetraOperator
+ * \brief A global 2x2 block-Jacobi preconditioner splitting the
+ *        deformation-diffusion equation's interleaved dof (u1,v1,w1,c1,
+ *        u2,v2,w2,c2,...) into a "u" block (3 elastic dof/node) and a "c"
+ *        block (1 concentration dof/node), each with its own independent
+ *        sub-preconditioner. This is not an approximation for this
+ *        equation specifically: the u-c coupling blocks (Kuc/Kcu) are
+ *        exactly zero whenever the CCB element's active/growth/
+ *        reorientation mechanisms are all switched off, so block-Jacobi
+ *        recovers the same result a true block-diagonal solve would.
+ *        Even when Kuc/Kcu are nonzero, this remains a valid (just
+ *        approximate, like any Jacobi-type splitting) preconditioner.
+ *
+ *        svMultiPhysics assembles this equation as a single monolithic
+ *        Tpetra_CrsMatrix with dof=4 interleaved per node (see
+ *        trilinos_lhs_create's globalDofGIDs construction), not as
+ *        separate Kuu/Kuc/Kcu/Kcc blocks -- so MueLu's own built-in
+ *        "number of equations"=4 amalgamation (see setMueLuPreconditioner)
+ *        incorrectly assumes all 4 dof/node are of uniform physical type
+ *        when building aggregates/nullspace, which is wrong here (3
+ *        translational elastic dof + 1 unrelated scalar diffusion dof).
+ *        This class instead builds two separate, physically-correct
+ *        sub-matrices (a genuine 3-dof/node elasticity-type matrix for u,
+ *        and a genuine 1-dof/node scalar diffusion matrix for c) and
+ *        applies MueLu (with the correct "number of equations"=3) to the
+ *        u block and a simple Ifpack2 relaxation to the c block.
+ */
+class BlockJacobiUCTpetraOperator: public Tpetra_Operator
+{
+public:
+  BlockJacobiUCTpetraOperator(const Teuchos::RCP<const Tpetra_Map>& fullMap,
+                               const Teuchos::RCP<const Tpetra_Map>& uMap,
+                               const Teuchos::RCP<const Tpetra_Map>& cMap,
+                               const std::vector<LO>& uLocalToFullLocal,
+                               const std::vector<LO>& cLocalToFullLocal,
+                               const Teuchos::RCP<Tpetra_Operator>& uPrec,
+                               const Teuchos::RCP<Ifpack2_Preconditioner>& cPrec)
+    : fullMap_(fullMap), uMap_(uMap), cMap_(cMap),
+      uLocalToFullLocal_(uLocalToFullLocal), cLocalToFullLocal_(cLocalToFullLocal),
+      uPrec_(uPrec), cPrec_(cPrec) {}
+
+  void apply(const Tpetra_MultiVector& X, Tpetra_MultiVector& Y,
+             Teuchos::ETransp mode = Teuchos::NO_TRANS,
+             Scalar_d alpha = Teuchos::ScalarTraits<Scalar_d>::one(),
+             Scalar_d beta = Teuchos::ScalarTraits<Scalar_d>::zero()) const override;
+
+  Teuchos::RCP<const Tpetra_Map> getDomainMap() const override { return fullMap_; }
+  Teuchos::RCP<const Tpetra_Map> getRangeMap() const override { return fullMap_; }
+
+private:
+  Teuchos::RCP<const Tpetra_Map> fullMap_;
+  Teuchos::RCP<const Tpetra_Map> uMap_;
+  Teuchos::RCP<const Tpetra_Map> cMap_;
+  std::vector<LO> uLocalToFullLocal_;
+  std::vector<LO> cLocalToFullLocal_;
+  Teuchos::RCP<Tpetra_Operator> uPrec_;
+  Teuchos::RCP<Ifpack2_Preconditioner> cPrec_;
+}; // class BlockJacobiUCTpetraOperator
 
 /**
  * \class TrilinosMatVec
@@ -224,10 +286,14 @@ public:
 void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType, 
   Teuchos::RCP<Belos_LinearProblem>& BelosProblem);
 
-void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner>& MueLuPrec, 
-  const Teuchos::RCP<Tpetra_CrsMatrix>& A);
+void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner>& MueLuPrec,
+  const Teuchos::RCP<Tpetra_CrsMatrix>& A, int numEquations = -1);
+
+void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
+  Teuchos::RCP<Tpetra_Operator>& blockJacobiPrec);
 
 void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_);
+void checkDiagonalIsZero(const Teuchos::RCP<Tpetra_CrsMatrix> &A);
 
 void constructJacobiScaling(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
               Tpetra_Vector &diagonal);
