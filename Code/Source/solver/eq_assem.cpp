@@ -228,8 +228,11 @@ void b_neu_folw_p(ComMod& com_mod, const bcType& lBc, const faceType& lFa, const
         xl(i,a) = com_mod.x(i,Ac);
       }
 
+      // def_diffu is assembled quasi-statically at the full current Newton
+      // iterate Dn (see def_diffu.cpp), not the generalized-alpha blended Dg.
+      const auto& Dsrc = (cPhys == EquationType::phys_def_diffu) ? solutions.current.get_displacement() : Dg;
       for (int i = 0; i < tDof; i++) {
-        dl(i,a) = Dg(i,Ac);
+        dl(i,a) = Dsrc(i,Ac);
       }
     }
 
@@ -273,16 +276,28 @@ void b_neu_folw_p(ComMod& com_mod, const bcType& lBc, const faceType& lFa, const
         }
 
       } else if (cPhys == EquationType::phys_struct || cPhys == EquationType::phys_def_diffu) {
-        // def_diffu shares struct's follower-pressure element formulation
-        // exactly: b_struct_3d/b_struct_2d read the displacement dof
-        // positions and stride via eq.s/com_mod.dof at runtime (not
-        // hardcoded to dof=3), so it is already correct for def_diffu's
-        // dof=4 (u,v,w,c) layout, where displacement occupies the same
-        // local components 0,1,2 that struct uses.
+        // b_struct_3d/b_struct_2d read the displacement dof positions and
+        // stride via eq.s/com_mod.dof, so they work for def_diffu's dof=4
+        // (u,v,w,c) layout. But they scale the tangent by
+        // eq.af*eq.beta*dt*dt (struct's acceleration-unknown convention);
+        // def_diffu's Newton unknown is the displacement increment itself
+        // (Integrator::corrector's phys_def_diffu branch), so that factor
+        // is undone below.
         if (nsd == 3) {
           struct_ns::b_struct_3d(com_mod, eNoN, w, N, Nx, dl, hl, nV, lR, lK);
         } else {
           struct_ns::b_struct_2d(com_mod, eNoN, w, N, Nx, dl, hl, nV, lR, lK);
+        }
+      }
+    }
+
+    if (cPhys == EquationType::phys_def_diffu) {
+      const double afu = eq.af * eq.beta * com_mod.dt * com_mod.dt;
+      for (int b = 0; b < eNoN; b++) {
+        for (int a = 0; a < eNoN; a++) {
+          for (int idx = 0; idx < dof*dof; idx++) {
+            lK(idx,a,b) = lK(idx,a,b) / afu;
+          }
         }
       }
     }
