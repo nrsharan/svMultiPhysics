@@ -120,22 +120,9 @@ struct ElementInput {
 
   Array<double> positions;      // (3,10) reference-configuration coordinates
   Array<double> displacements;  // (3,10) current nodal displacements
-  Array<double> accelerations;  // (3,10) current nodal displacement
-                                 // accelerations. FEDDLib's own reference
-                                 // implementation of this element's sibling
-                                 // (AssembleFE_SCI_SMC_Active_Growth_
-                                 // Reorientation) leaves this permanently at
-                                 // zero and never adds Task 2's "Rdyn"/"Mu"
-                                 // outputs into the residual/tangent -- the
-                                 // element is driven as quasi-static, not as
-                                 // real Newmark/generalized-alpha dynamics.
-                                 // def_diffu.cpp follows that precedent; see
-                                 // its header comment.
+  Array<double> accelerations;  // (3,10) current nodal accelerations
   Vector<double> concentrations; // (10) current nodal concentrations
-  Vector<double> rates;          // (10) current nodal concentration rate,
-                                  // i.e. (c_new - c_old)/dt (plain backward
-                                  // Euler, matching FEDDLib -- NOT
-                                  // svMultiPhysics's generalized-alpha 'Yn').
+  Vector<double> rates;          // (10) current nodal concentration rates
 
   /// Domain-data values, ordered to match ElementInfo::domainDataNames.
   std::vector<double> domainData;
@@ -155,47 +142,33 @@ struct ElementInput {
 /// dense-array convention: lR/lRdyn are (dof,eNoN) with dof=4 (3
 /// displacement components then 1 concentration component), and the
 /// dof*dof x eNoN x eNoN tangent blocks use flat row index i*dof+j for
-/// row-component i, column-component j.
-///
-/// def_diffu.cpp (see its header comment) assembles this element as
-/// quasi-static, following FEDDLib's own reference implementation of this
-/// element's sibling: displacement uses lKState's Kuu/Kuc/Kcu blocks
-/// completely UNSCALED (no eq.af/eq.beta/eq.gam factors at all -- the Newton
-/// linear-solve unknown is bypassed straight through to be the state
-/// increment itself, via a phys_def_diffu special case added to
-/// Integrator::corrector()), lRdyn/lKMass are never added at all, and only
-/// the concentration-concentration block gets an extra Mc/dt (plain
-/// backward Euler capacitance term) folded in via lKRate. So the blocks
-/// below are the *raw*, unscaled residual/tangent contributions:
+/// row-component i, column-component j. All blocks are the element's raw,
+/// unscaled contributions; how they are combined into the Newton system is
+/// up to the caller (see def_diffu.cpp).
 struct ElementOutput {
   ElementOutput()
       : lR(4, 10), lRdyn(4, 10), lKState(16, 10, 10), lKRate(16, 10, 10),
         lKMass(16, 10, 10) {}
 
-  /// Interface2's Rint (displacement rows) and Rc (concentration row) --
-  /// the element's internal/quasi-static residual. Caller adds this
-  /// unscaled.
+  /// Interface2's Rint (displacement rows) and Rc (concentration row): the
+  /// element's internal residual.
   Array<double> lR;         // (4,10)
 
   /// Interface2's Rdyn (displacement rows only; concentration row is
-  /// zero) -- the element's own physical inertia residual (rho*a,
-  /// computed from the accelerations passed into ElementInput). Caller
-  /// adds this unscaled, alongside lR.
+  /// zero): the inertia residual computed from ElementInput::accelerations.
   Array<double> lRdyn;      // (4,10)
 
   /// d(residual)/d(displacement, concentration), i.e. Interface2's Kuu, Kuc,
-  /// Kcu, Kcc placed at their (i,j) dof-block positions. Caller must scale
-  /// by eq.af*eq.beta*dt*dt before assembling.
+  /// Kcu, Kcc placed at their (i,j) dof-block positions.
   Array3<double> lKState;   // (16,10,10)
 
   /// d(residual)/d(concentration rate), i.e. Interface2's Mc placed at dof
-  /// block (3,3). Caller must scale by eq.af*eq.gam*dt before assembling.
+  /// block (3,3).
   Array3<double> lKRate;    // (16,10,10)
 
-  /// d(Rdyn)/d(acceleration), i.e. Interface2's Mu (a real, physical mass
-  /// matrix -- density is already baked in) placed at the displacement-
-  /// displacement (i,j in 0..2) dof-block positions; concentration rows/
-  /// columns are zero. Caller must scale by eq.am before assembling.
+  /// d(Rdyn)/d(acceleration), i.e. Interface2's mass matrix Mu (density
+  /// included) placed at the displacement-displacement (i,j in 0..2) dof
+  /// blocks; concentration rows/columns are zero.
   Array3<double> lKMass;    // (16,10,10)
 
   /// Trial (not-yet-committed) updated history for this element.
@@ -207,21 +180,6 @@ struct ElementOutput {
 /// convention (see ElementOutput). Throws std::runtime_error if
 /// svMultiPhysics was not built with Interface2 support.
 ElementOutput compute(const ElementInput& input);
-
-/// TEMPORARY DEBUG UTILITY (not part of the normal element API): returns
-/// Interface2's postProcess()-reported nodal volume weights, summed, for
-/// the given reference-configuration positions (svMultiPhysics/VTK local
-/// node order) at zero displacement/concentration -- i.e. the element's
-/// reference-configuration volume as this adapter's node permutation and
-/// Interface2 jointly compute it. Compare against an independently
-/// computed analytic volume (e.g. from the same 4 corner coordinates) to
-/// verify the permutation preserves a positive Jacobian for real mesh
-/// data, exactly as read through svMultiPhysics's own mesh loader (as
-/// opposed to a standalone re-derivation from a raw mesh file, which may
-/// not reflect any node-order canonicalization svMultiPhysics's mesh
-/// loader itself applies).
-double debug_reference_volume(const Array<double>& positions, const std::vector<double>& domainData,
-                               int integrationCode, double subIterationTolerance);
 
 } // namespace ace_gen_cmm_smc
 

@@ -8,37 +8,15 @@
 // inner Gauss-point loop: Interface2 integrates all Gauss points internally
 // in one compute() call per element.
 //
-// Time integration here deliberately does NOT follow sv_struct.cpp's
-// Newmark/generalized-alpha pattern, even though this element's AceGen
-// source (SMC_Interface_Active_Growth_CMM_Reorientation.c, Tasks 1/2
-// "Mu"/"Rdyn") does compute a real mass matrix and inertia residual. An
-// earlier version of this file DID wire those in as genuine second-order
-// dynamics (scaled by eq.am/eq.af*eq.beta*dt*dt/eq.af*eq.gam*dt, exactly
-// like sv_struct.cpp's afu/afv/amd), but that made the linear system
-// converge poorly (GMRES never reaching its own tolerance, even at zero
-// load) and requires zeroing Yo/Ao after every converged step just to keep
-// the response from drifting -- symptoms of forcing a fundamentally
-// quasi-static, load-driven model through a scheme built for real inertial
-// dynamics.
-//
-// FEDDLib's own working reference implementation of this element's sibling
-// (feddlib/core/AceFemAssembly/specific/
-// AssembleFE_SCI_SMC_Active_Growth_Reorientation_def.hpp) settles the
-// question: it leaves accelerations permanently at zero, computes Rdyn but
-// explicitly never adds it into the RHS (`//+residuumRDyn[i]`, commented
-// out in that source), uses Kuu/Kuc/Kcu completely UNSCALED as the Newton
-// tangent (i.e. the linear-solve unknown IS the displacement increment
-// directly, not a Newmark acceleration needing beta*dt*dt/gam*dt scaling),
-// and treats concentration with plain backward Euler: rate =
-// (c_new-c_old)/dt using the last CONVERGED concentration (not
-// svMultiPhysics's generalized-alpha blended 'Yg'/'Dg'), with Kcc+Mc/dt as
-// the concentration-concentration tangent block. This file replicates that
-// scheme exactly. Because the tangent this element assembles is d(residual)
-// /d(state) directly rather than d(residual)/d(acceleration), the generic
-// Integrator::corrector() Newmark relation (Dn -= R*eq.beta*dt*dt) does not
-// apply to phys_def_diffu -- see the phys_def_diffu special case added to
-// Integrator::corrector() (Integrator.cpp), which instead applies Dn -= R
-// directly, matching this tangent's convention.
+// Time integration is quasi-static, as in FEDDLib's implementation of this
+// element (feddlib/core/AceFemAssembly/specific/
+// AssembleFE_SCI_SMC_CMM_Active_Growth_Reorientation_def.hpp): the
+// accelerations are zero and the element's inertia residual (Rdyn) and mass
+// matrix (Mu) are not assembled. The tangent is d(residual)/d(state):
+// Kuu/Kuc/Kcu unscaled and Kcc + Mc/dt, with the concentration rate taken by
+// backward Euler from the last converged state. The Newton unknown is
+// therefore the state increment itself, so Integrator::corrector() applies
+// Dn -= R directly for phys_def_diffu instead of the Newmark relations.
 
 #include "def_diffu.h"
 
@@ -91,13 +69,8 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
     // unconditionally overwrites the geometry-dependent fiber/growth-
     // orientation entries (a11-a23) and the growth tensor (ag11-ag33)
     // itself, from scratch, inside its own Task 3 compute() on the very
-    // first call (gated on time==timeIncrement) -- confirmed empirically
-    // (the placeholder's values there are discarded regardless of what
-    // they are). An earlier version of this code ran a separate per-
-    // element pre-pass through Task 8 ("InitGrowth",
-    // initializeGrowthOrientationVectors()) to seed those entries before
-    // that gate ever fired; that pass is redundant with Task 3's own
-    // self-initialization and has been removed.
+    // first call (gated on time==timeIncrement), so the placeholder's values
+    // there are discarded.
     int historyLengthPerElement = -1;
 
     for (int e = 0; e < lM.nEl; e++) {

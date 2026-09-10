@@ -67,8 +67,7 @@
 // Amesos2_PardisoMKL.hpp (needed for its runtime-string solver dispatch,
 // regardless of which solver is actually requested), whose
 // FunctionMap<PardisoMKL,...> has two specializations that collide once
-// MKL_ILP64 makes "long long" and PMKL::_INTEGER_t the same type -- a
-// genuine Trilinos header bug in this configuration. KLU2's own decl/def
+// MKL_ILP64 makes "long long" and PMKL::_INTEGER_t the same type. KLU2's own decl/def
 // headers have no PardisoMKL dependency at all, so including them
 // directly (and constructing Amesos2::KLU2 directly instead of going
 // through Amesos2::create()'s factory) sidesteps the broken header
@@ -224,12 +223,9 @@ private:
  *        a Tpetra_Operator whose apply() computes an EXACT solve of
  *        A x = b, so it can be plugged into Belos as a left
  *        preconditioner the same way MueLu/block-Jacobi are -- GMRES then
- *        converges in (up to round-off) a single iteration. Intended as a
- *        cheap, decisive diagnostic/validation solver for small systems
- *        (this equation's test meshes are a few thousand dof), to check
- *        whether an iterative preconditioner's poor convergence reflects
- *        the preconditioner rather than the assembled matrix itself --
- *        not a scalable production solver for large 3D meshes.
+ *        converges in (up to round-off) a single iteration. Suitable for
+ *        small systems (a few thousand dof); not a scalable solver for
+ *        large 3D meshes.
  *
  *        Constructs Amesos2::KLU2 directly (X/B left null, rebound per
  *        call in apply() via setX()/setB(), exactly what Amesos2::create()

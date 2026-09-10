@@ -53,22 +53,6 @@
   </Add_face>
 
   <Mesh_scale_factor> 1.0 </Mesh_scale_factor>
-  <!-- mesh/initial_displacement.vtu (a ~17% radially-outward prestretch,
-       no reference/pin-down as to why: no checked-in script generates or
-       documents it) was removed here. It gave svMultiPhysics a different
-       starting state than FEDDLib's plain undeformed reference
-       configuration, which was confirmed (via the raw-matrix/residual
-       comparison) to fully explain an ~8000x residual-norm mismatch
-       between the two codes at the first Newton iteration, and is a
-       strong candidate for the iteration-1-3 Newton divergence seen with
-       the exact-solve (trilinos-amesos2) test too, since Newton's first
-       steps would otherwise be correcting a large pre-existing imbalance
-       from a stale prestretch (computed before this session's
-       ElastinFrac/CollagenFrac/SMCFrac fix changed the zero-stress
-       state), not just responding to the small first-step pressure
-       increment. This test is meant to be purely passive/load-driven
-       (all active/growth/reorientation bools off), matching FEDDLib's
-       setup, which has no equivalent prestretch. -->
 </Add_mesh>
 
 <Add_equation type="deformation-diffusion" >
@@ -160,85 +144,13 @@
      <Concentration> true </Concentration>
    </Output>
 
-   <!-- FSILS's own "rcs" preconditioner (diagonal row/column scaling) was
-        verified to reduce this system's raw condition number from ~1.3e9
-        to ~4.5e5, still far too large for GMRES within a practical
-        iteration budget. "trilinos-ml" (MueLu AMG) genuinely engaged
-        (confirmed via its own verbose parameter dump) but still didn't
-        converge in 100 iterations. Root cause: svMultiPhysics assembles
-        this equation as a single monolithic matrix with dof=4 interleaved
-        per node (u1,v1,w1,c1,u2,...), not as separate Kuu/Kuc/Kcu/Kcc
-        blocks (confirmed directly in trilinos_lhs_create's globalDofGIDs
-        construction), so MueLu's "number of equations"=4 amalgamation
-        wrongly assumes all 4 dof/node are of uniform physical type when
-        building aggregates/nullspace; wrong here, since Kuc/Kcu are
-        exactly zero for this passive test (all active/growth/
-        reorientation mechanisms off) and dof 0-2 (elastic, translational
-        nullspace) share nothing with dof 3 (unrelated scalar diffusion).
-        "trilinos-ilut" (tried next) was worse, not better; ILU's local
-        factorization has no multilevel correction, so it handled the
-        ~8-9 order-of-magnitude scale gap between the two blocks even
-        worse than AMG did. Switched to "trilinos-blockjacobi-uc": a
-        custom, genuinely block-structured preconditioner (see
-        BlockJacobiUCTpetraOperator / setBlockJacobiUCPreconditioner in
-        trilinos_impl.h/.cpp) that extracts the true u (3 elastic dof/
-        node) and c (1 concentration dof/node) sub-matrices and applies
-        MueLu (now with the physically correct "number of equations"=3)
-        to u and simple Gauss-Seidel to c independently; exact, not
-        approximate, block-Jacobi given Kuc=Kcu=0 here. Still stalled at
-        100 GMRES iterations, so checked what FEDDLib itself actually uses
-        for the equivalent structure/chemistry system: not MueLu/AMG at
-        all, but FROSch, a two-level overlapping Schwarz method with EXACT
-        local subdomain solves (Pardiso) at both the local overlapping
-        level and the coarse (rotation-aware RGDSW) level, a
-        substantially stronger preconditioner class than anything tried
-        here so far. As a fast, decisive check of whether the assembled
-        matrix/RHS are themselves sound, independent of preconditioner
-        quality, switched to "trilinos-amesos2": an exact direct
-        factorization (Amesos2/KLU2, already linked in via MueLu's own
-        coarse solve) wrapped as a Tpetra_Operator "preconditioner", so
-        GMRES should converge in essentially one iteration if the linear
-        system itself is correct. This equation's test meshes are small (a
-        few thousand dof), so a direct solve is cheap here; this is a
-        validation step, not a scalable choice for larger meshes. That
-        validation step worked (iterations 1-1/1-2 solved to machine
-        precision in 1 GMRES iteration each), but Newton then diverged on
-        iteration 1-3 (an undamped full Newton step overshot into an
-        unphysical state) and the matrix went singular by 1-5. Before
-        concluding this is purely a missing-line-search issue, switching
-        BACK to "fsils"/"rcs" here temporarily, not because rcs is a
-        better preconditioner, but to reuse the existing
-        DUMP_LINEAR_SYSTEM_CALL/DUMP_LINEAR_SYSTEM_DIR env-var hook
-        already in FsilsLinearAlgebra.cpp::solve() to dump the raw
-        assembled K/R for a direct, 1:1 comparison against FEDDLib's own
-        assembled system at the same physical state (first Newton
-        iteration, first load step). Assembly happens identically
-        upstream of whichever backend actually solves it, so this dumps
-        the exact same matrix trilinos_->K would otherwise hold, so no new
-        dump code is needed on this side.
-
-        Comparison result: FEDDLib's tangent at this same physical state
-        (first Newton iteration, first load step) was ~16% asymmetric,
-        while svMultiPhysics's was symmetric to machine precision
-        (2.5e-16), despite both using the same follower-pressure inner-
-        wall BC. Traced to a real bug: read_files.cpp's lBc.flwP gate
-        (which physics types get real follower-pressure treatment) never
-        included Equation_defdiff, so def_diffu's "follower" pressure was
-        silently falling back to a fixed-direction dead load (no pressure-
-        stiffness/Nanson's-formula linearization at all), consistent
-        with the exact symmetry, and a well-known source of Newton
-        instability under inflating-surface loading (the fixed load
-        direction stops making physical sense as the wall balloons and
-        its true normal rotates away). Also, eq_assem.cpp's b_neu_folw_p
-        had no phys_def_diffu case at all. Both fixed: flwP gate now
-        includes Equation_defdiff, and b_neu_folw_p now routes
-        phys_def_diffu through struct_ns::b_struct_3d/b_struct_2d (the
-        same follower-pressure element formulation phys_struct uses,
-        already written generically against eq.s/com_mod.dof rather than
-        a hardcoded dof=3, so it needed no adaptation for def_diffu's
-        dof=4 layout). Switched back to "trilinos-amesos2" (exact direct
-        solve) to test whether this fix alone resolves the iteration-1-3
-        divergence, independent of any preconditioner/GMRES question. -->
+   <!-- This system is badly conditioned (stiff displacement block next to a
+        diffusion block with D0 = 6e-5): FSILS GMRES with rcs, trilinos-ml,
+        trilinos-ilut and trilinos-blockjacobi-uc all fail to reach the
+        tolerance within the iteration budget. trilinos-amesos2 uses a KLU2
+        direct factorization as the GMRES preconditioner, so each Newton
+        system is solved in about one iteration. This is fine for a mesh this
+        small but is not a scalable choice. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
          <Preconditioner> trilinos-amesos2 </Preconditioner>
@@ -251,8 +163,7 @@
    <!-- Statically-determinate constraint set (a plain or Effective_direction
         Dir BC on this dof=nsd+1 equation only ever touches the 3 spatial
         displacement components; the concentration dof cannot be
-        Dirichlet-constrained at all in the current implementation, see the
-        accompanying report):
+        Dirichlet-constrained at all in the current implementation):
         - both end faces axially fixed (u_z=0) removes z-translation and
           bending/tilt rotation about the x and y axes (3 modes);
         - 3 points on the outer surface, evenly spaced in angle, each with

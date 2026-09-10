@@ -93,67 +93,23 @@ std::string clean_domain_data_name(const std::string& raw) {
   return candidate;
 }
 
-/// AceGen's local tet10 node numbering (see this element's ReferenceNodes /
-/// 'rnodes' table in SMC_Interface_Active_Growth_CMM_Reorientation.c) is
-/// NOT the same as svMultiPhysics's own tet10 local node numbering -- and,
-/// importantly, svMultiPhysics's OWN local node numbering (i.e. what
-/// mshType::IEN(a,e) actually returns for a=0..9, after its mesh loader has
-/// read and internally reordered the mesh file) is *also* not simply the
-/// "textbook" VTK quadratic-tetra convention (corners (0,0,0),(1,0,0),
-/// (0,1,0),(0,0,1) then mid-edge nodes in edge order (0,1),(1,2),(2,0),
-/// (0,3),(1,3),(2,3) -- see FE/Basis/NodeOrderingConventions.cpp) applied
-/// directly to the mesh file's own node order: empirically, for every
-/// element of a real gmsh-generated mesh checked here, evaluating the
-/// signed-volume formula directly on svMultiPhysics's own IEN(0,e)..
-/// IEN(3,e) corners gives a *negative* volume (confirmed for all 920
-/// elements of one test mesh, not just one element -- so this is a
-/// uniform, mesh-wide relabeling, not a per-element quirk). This array
-/// gives, for each AceGen local node index, the corresponding
-/// svMultiPhysics local node index (as returned by IEN) -- i.e.
-/// svMultiPhysics node kAceGenNodeToVtkNode[a] IS AceGen's node 'a'.
-/// Without this permutation, nodal data would be silently attached to the
-/// wrong physical node.
+/// Maps AceGen's local tet10 node numbering (the element's 'rnodes' table in
+/// SMC_Interface_Active_Growth_CMM_Reorientation.c) to svMultiPhysics's
+/// local numbering as returned by mshType::IEN(a,e): svMultiPhysics node
+/// kAceGenNodeToVtkNode[a] is AceGen's node 'a'. svMultiPhysics's mesh
+/// loader reorders the element nodes (its IEN corners give a negative
+/// signed volume for gmsh tet10 meshes), so the table is expressed in IEN
+/// order, not in the mesh file's order.
 ///
-/// Getting this right requires two independent things to both be correct,
-/// and it is easy to get one right and the other wrong (as happened during
-/// development -- see below): (1) each AceGen local index must receive the
-/// physical corner/edge-midpoint that actually matches its own reference
-/// coordinate (a value-correctness question), and (2) the OVERALL
-/// corner assignment must be an EVEN permutation of a positively-oriented
-/// reference assignment, out of the 24 possible corner assignments only 12
-/// preserve a positive Jacobian determinant; the other 12 silently produce
-/// an inside-out (mirrored) element with a *negative* Jacobian everywhere.
-/// This second failure mode is subtle: nodal values still land at
-/// plausible-looking locations and small-strain behavior can look
-/// approximately fine, but the element is geometrically invalid and the
-/// hyperelastic kinematics become wrong in a way that grows with
-/// deformation, eventually causing severe nonlinearity/divergence.
-///
-/// This exact table was derived and verified in two stages against GROUND
-/// TRUTH (an analytic signed volume computed independently from a real
-/// element's own corner coordinates -- never assumed from documentation),
-/// using Interface2's own postProcess() reported nodal volume weights
-/// (summed, at zero displacement) as the adapter-side measurement:
-///   1. A first candidate ({1,2,3,0,5,9,8,4,6,7}), derived by matching
-///      AceGen's reference-node coordinates against the mesh file's own
-///      (pre-svMultiPhysics-reordering) node order, turned out to be an
-///      orientation-reversing (odd) permutation of that order -- caught by
-///      comparing against the mesh file's own volume (positive) and
-///      against FEDDLib's working reference for this element's sibling
-///      (AssembleFE_SCI_SMC_Active_Growth_Reorientation_def.hpp), which
-///      uses that same pre-reordering node order with NO permutation at
-///      all and gets the correct sign. Swapping one corner pair fixed the
-///      parity relative to that order, giving {2,1,3,0,5,8,9,6,4,7}.
-///   2. That "fixed" table was then found to STILL give a negative volume
-///      once actually exercised through svMultiPhysics's real assembly
-///      path (def_diffu.cpp, using mshType::IEN-ordered positions) --
-///      because svMultiPhysics's own internal node order is itself an odd
-///      permutation (corners 0 and 1 swapped, verified against real
-///      mesh-loader output) of the order used in stage 1. Composing that
-///      known corner swap (and its corresponding mid-edge relabeling) with
-///      stage 1's table gives the array below, which was verified to
-///      reproduce the correct positive volume when exercised through the
-///      real svMultiPhysics assembly path, for a real mesh element.
+/// Two conditions must both hold: each AceGen node must receive the
+/// physical node matching its reference coordinate, and the corner
+/// assignment must be an even permutation of a positively oriented one.
+/// An odd permutation still places nodal values at plausible locations but
+/// gives an inverted element (negative Jacobian), whose kinematics become
+/// increasingly wrong with deformation. The table was checked against the
+/// analytic signed volume of real mesh elements, using Interface2's
+/// postProcess() nodal volume weights at zero displacement, through the
+/// def_diffu.cpp assembly path.
 constexpr int kAceGenNodeToVtkNode[10] = {2, 0, 3, 1, 6, 7, 9, 5, 4, 8};
 
 void flatten_positions(const Array<double>& src, double* dst) {
@@ -380,33 +336,6 @@ ElementOutput compute(const ElementInput& input) {
                              historyUpdated + input.history.size());
 
   return out;
-#endif
-}
-
-double debug_reference_volume(const Array<double>& positions, const std::vector<double>& domainData,
-                               int integrationCode, double subIterationTolerance) {
-#ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error("Interface2 support not built in.");
-#else
-  double positionsFlat[30];
-  flatten_positions(positions, positionsFlat);
-  double displacements[30] = {0.0};
-  double accelerations[30] = {0.0};
-  double concentrations[10] = {0.0};
-  double rates[10] = {0.0};
-
-  std::vector<double> domainDataCopy = domainData;
-  std::vector<double> history = initial_history(get_element_info(integrationCode));
-
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      elem(positionsFlat, displacements, concentrations, accelerations, rates,
-           domainDataCopy.data(), history.data(), subIterationTolerance,
-           1.0, 1.0, integrationCode, 0);
-
-  double** post = elem.postProcess(displacements, concentrations, history.data(), rates, accelerations);
-  double volSum = 0.0;
-  for (int a = 0; a < 10; a++) volSum += post[a][0];
-  return volSum;
 #endif
 }
 

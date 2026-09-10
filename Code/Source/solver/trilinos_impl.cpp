@@ -943,8 +943,7 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
 
   // Classify each locally-owned dof by its position within a node's dof
   // block (gid % dof): the last component (d == dof-1) is the
-  // concentration dof (confirmed against ace_gen_cmm_smc_element.cpp's
-  // out.lR(3,va)=Rc[a] / out.lKState(i*dof+3,...)=Kuc convention); the
+  // concentration dof (see ace_gen_cmm_smc_element.cpp's dof layout); the
   // rest are the 3 elastic displacement dof.
   //
   // uMap/cMap must NOT simply reuse the filtered-out subset of K's own
@@ -952,9 +951,8 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   // amalgamation assumes a row map's GIDs are densely packed as
   // node*numEquations+offset, and a stride-4-with-gaps numbering (K's
   // original gid = nodeGID*dof+d, with d==dof-1 removed) breaks that
-  // assumption -- confirmed as the actual cause of a
-  // "vector::_M_fill_insert" throw from deep inside MueLu's u-block
-  // setup. Instead, assign each block its own densely-packed numbering
+  // assumption (MueLu's u-block setup then throws from
+  // vector::_M_fill_insert). Instead, assign each block its own densely-packed numbering
   // computed directly from the shared underlying node id
   // (nodeGID = oldGid/dof, valid globally regardless of ownership):
   // newUGid = nodeGID*(dof-1)+d (d in [0,dof-2]), newCGid = nodeGID.
@@ -966,8 +964,7 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   // sufficient -- block-filtering only ever drops entries, never adds
   // them -- and this Trilinos version enforces the constructor's per-row
   // hint as a hard, non-growable capacity rather than a resizable
-  // estimate (a fixed guess of 50 was observed to be too small: one row
-  // needed 66).
+  // estimate.
   std::vector<size_t> uRowNnz, cRowNnz;
   uGidsNew.reserve(numLocalDofs);
   cGidsNew.reserve(numLocalDofs);
@@ -1064,9 +1061,7 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   // Each stage below is fenced with its own try/catch and rethrown with a
   // stage tag prepended to e.what(). The exceptions Trilinos throws from
   // deep inside MueLu/Ifpack2/Tpetra carry no location info by the time
-  // they reach svMultiPhysics's top-level catch, so this is the cheapest
-  // way to localize a failure without a cluster debugger (ptrace is
-  // blocked there).
+  // they reach svMultiPhysics's top-level catch.
   try
   {
     uMatrix->fillComplete(uMap, uMap);
@@ -1154,11 +1149,7 @@ void Amesos2DirectTpetraOperator::apply(const Tpetra_MultiVector& X, Tpetra_Mult
  * full monolithic matrix K -- i.e. not an approximation at all, just A^-1
  * wrapped as a Tpetra_Operator so it can be plugged into Belos through
  * the same setLeftPrec() path as every other preconditioner here. See
- * Amesos2DirectTpetraOperator's class comment (trilinos_impl.h) for why:
- * a cheap, decisive way to check whether GMRES's poor convergence with
- * MueLu/block-Jacobi reflects the preconditioner rather than the
- * assembled matrix/RHS themselves, on the small meshes this equation is
- * currently tested against.
+ * Amesos2DirectTpetraOperator's class comment (trilinos_impl.h).
  */
 void setAmesos2Preconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   Teuchos::RCP<Tpetra_Operator>& amesos2Prec)
