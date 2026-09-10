@@ -772,7 +772,6 @@ void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner> &MueLuPrec,
   mueluParams.set("aggregation: max agg size", 8);
   mueluParams.set("aggregation: ordering", "natural");
   mueluParams.set("aggregation: drop scheme", "classical");
-  mueluParams.set("aggregation: strength-of-connection: measure", "smoothed aggregation");
   mueluParams.set("aggregation: number of random vectors", 5);
   mueluParams.set("aggregation: number of times to pre or post smooth", 3);
 
