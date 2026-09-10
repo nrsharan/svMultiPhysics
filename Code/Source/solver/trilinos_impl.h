@@ -55,10 +55,14 @@
 #include "BelosStatusTestCombo.hpp"
 
 //Ifpack2 includes
-#include "Ifpack2_Factory.hpp"   
+#include "Ifpack2_Factory.hpp"
 
 // MueLu includes
 #include "MueLu_CreateTpetraPreconditioner.hpp"
+
+// Amesos2 includes (direct sparse solver, used as an exact-inverse
+// preconditioner -- see Amesos2DirectTpetraOperator)
+#include "Amesos2.hpp"
 
 /**************************************************************/
 /*                      Types Definitions                     */
@@ -116,6 +120,7 @@ using MueLu_Preconditioner = Tpetra_Operator;
 #define TRILINOS_RILUK1_PRECONDITIONER 707
 #define TRILINOS_ML_PRECONDITIONER 708
 #define TRILINOS_BLOCKJACOBI_UC_PRECONDITIONER 712
+#define TRILINOS_AMESOS2_PRECONDITIONER 713
 
 /// @brief Initialize all Epetra types we need separate from Fortran
 struct Trilinos
@@ -136,7 +141,8 @@ struct Trilinos
   Teuchos::RCP<Tpetra_Operator> MueluPrec;
   Teuchos::RCP<Ifpack2_Preconditioner> ifpackPrec;
   Teuchos::RCP<Tpetra_Operator> blockJacobiPrec;
-  Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr), blockJacobiPrec(nullptr) {}
+  Teuchos::RCP<Tpetra_Operator> amesos2Prec;
+  Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr), blockJacobiPrec(nullptr), amesos2Prec(nullptr) {}
 };
 
 /**
@@ -198,6 +204,45 @@ private:
   Teuchos::RCP<Tpetra_Operator> uPrec_;
   Teuchos::RCP<Ifpack2_Preconditioner> cPrec_;
 }; // class BlockJacobiUCTpetraOperator
+
+/**
+ * \class Amesos2DirectTpetraOperator
+ * \brief Wraps an Amesos2 direct sparse factorization (KLU2, already
+ *        linked in via MueLu's own "coarse: type"="KLU" coarse solve) as
+ *        a Tpetra_Operator whose apply() computes an EXACT solve of
+ *        A x = b, so it can be plugged into Belos as a left
+ *        preconditioner the same way MueLu/block-Jacobi are -- GMRES then
+ *        converges in (up to round-off) a single iteration. Intended as a
+ *        cheap, decisive diagnostic/validation solver for small systems
+ *        (this equation's test meshes are a few thousand dof), to check
+ *        whether an iterative preconditioner's poor convergence reflects
+ *        the preconditioner rather than the assembled matrix itself --
+ *        not a scalable production solver for large 3D meshes.
+ */
+class Amesos2DirectTpetraOperator: public Tpetra_Operator
+{
+public:
+  Amesos2DirectTpetraOperator(const Teuchos::RCP<Tpetra_CrsMatrix>& A,
+                               const std::string& solverName = "KLU2")
+    : map_(A->getRowMap())
+  {
+    solver_ = Amesos2::create<Tpetra_CrsMatrix, Tpetra_MultiVector>(solverName, A);
+    solver_->symbolicFactorization();
+    solver_->numericFactorization();
+  }
+
+  void apply(const Tpetra_MultiVector& X, Tpetra_MultiVector& Y,
+             Teuchos::ETransp mode = Teuchos::NO_TRANS,
+             Scalar_d alpha = Teuchos::ScalarTraits<Scalar_d>::one(),
+             Scalar_d beta = Teuchos::ScalarTraits<Scalar_d>::zero()) const override;
+
+  Teuchos::RCP<const Tpetra_Map> getDomainMap() const override { return map_; }
+  Teuchos::RCP<const Tpetra_Map> getRangeMap() const override { return map_; }
+
+private:
+  Teuchos::RCP<const Tpetra_Map> map_;
+  Teuchos::RCP<Amesos2::Solver<Tpetra_CrsMatrix, Tpetra_MultiVector>> solver_;
+}; // class Amesos2DirectTpetraOperator
 
 /**
  * \class TrilinosMatVec
@@ -291,6 +336,9 @@ void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner>& MueLuPrec,
 
 void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   Teuchos::RCP<Tpetra_Operator>& blockJacobiPrec);
+
+void setAmesos2Preconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
+  Teuchos::RCP<Tpetra_Operator>& amesos2Prec);
 
 void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_);
 void checkDiagonalIsZero(const Teuchos::RCP<Tpetra_CrsMatrix> &A);

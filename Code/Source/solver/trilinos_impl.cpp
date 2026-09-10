@@ -666,6 +666,7 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
   if (trilinos_->MueluPrec != Teuchos::null) trilinos_->MueluPrec = Teuchos::null;
   if (trilinos_->ifpackPrec != Teuchos::null) trilinos_->ifpackPrec = Teuchos::null;
   if (trilinos_->blockJacobiPrec != Teuchos::null) trilinos_->blockJacobiPrec = Teuchos::null;
+  if (trilinos_->amesos2Prec != Teuchos::null) trilinos_->amesos2Prec = Teuchos::null;
 
   trilinos_->K = Teuchos::null;
 
@@ -735,6 +736,11 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
     checkDiagonalIsZero(trilinos_);
     setBlockJacobiUCPreconditioner(trilinos_, trilinos_->blockJacobiPrec);
     BelosProblem->setLeftPrec(trilinos_->blockJacobiPrec);
+    return;
+  } else if (precondType == TRILINOS_AMESOS2_PRECONDITIONER) {
+    checkDiagonalIsZero(trilinos_);
+    setAmesos2Preconditioner(trilinos_, trilinos_->amesos2Prec);
+    BelosProblem->setLeftPrec(trilinos_->amesos2Prec);
     return;
   } else {
     throw std::runtime_error("[ERROR Trilinos] Unsupported preconditioner type.");
@@ -1115,6 +1121,57 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
       fullMap, uMap, cMap, uLocalToFullLocal, cLocalToFullLocal, uPrec, cPrec));
 
 } // setBlockJacobiUCPreconditioner
+
+// ----------------------------------------------------------------------------
+/**
+ * Amesos2DirectTpetraOperator::apply -- solve A x = b exactly for each
+ * column of X (the RHS Belos hands the preconditioner), writing the
+ * result into Y. Amesos2's Solver interface binds its X/B MultiVectors up
+ * front (they may be reused across repeated solves with the same
+ * factorization), so they are rebound here on every call since Belos
+ * passes different vector objects each time.
+ */
+void Amesos2DirectTpetraOperator::apply(const Tpetra_MultiVector& X, Tpetra_MultiVector& Y,
+    Teuchos::ETransp mode, Scalar_d alpha, Scalar_d beta) const
+{
+  try
+  {
+    Teuchos::RCP<Tpetra_MultiVector> Yrcp = Teuchos::rcpFromRef(Y);
+    Teuchos::RCP<const Tpetra_MultiVector> Xrcp = Teuchos::rcpFromRef(X);
+    solver_->setX(Yrcp);
+    solver_->setB(Xrcp);
+    solver_->solve();
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[Amesos2DirectTpetraOperator::apply] failed: ") + e.what());
+  }
+} // Amesos2DirectTpetraOperator::apply
+
+// ----------------------------------------------------------------------------
+/**
+ * Sets up an exact direct-solve (Amesos2/KLU2) "preconditioner" on the
+ * full monolithic matrix K -- i.e. not an approximation at all, just A^-1
+ * wrapped as a Tpetra_Operator so it can be plugged into Belos through
+ * the same setLeftPrec() path as every other preconditioner here. See
+ * Amesos2DirectTpetraOperator's class comment (trilinos_impl.h) for why:
+ * a cheap, decisive way to check whether GMRES's poor convergence with
+ * MueLu/block-Jacobi reflects the preconditioner rather than the
+ * assembled matrix/RHS themselves, on the small meshes this equation is
+ * currently tested against.
+ */
+void setAmesos2Preconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
+  Teuchos::RCP<Tpetra_Operator>& amesos2Prec)
+{
+  try
+  {
+    amesos2Prec = Teuchos::rcp(new Amesos2DirectTpetraOperator(trilinos_->K));
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[setAmesos2Preconditioner] failed: ") + e.what());
+  }
+} // setAmesos2Preconditioner
 
 // ----------------------------------------------------------------------------
 /**

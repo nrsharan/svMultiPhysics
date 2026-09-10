@@ -170,10 +170,25 @@
         node) and c (1 concentration dof/node) sub-matrices and applies
         MueLu (now with the physically correct "number of equations"=3)
         to u and simple Gauss-Seidel to c independently; exact, not
-        approximate, block-Jacobi given Kuc=Kcu=0 here. -->
+        approximate, block-Jacobi given Kuc=Kcu=0 here. Still stalled at
+        100 GMRES iterations, so checked what FEDDLib itself actually uses
+        for the equivalent structure/chemistry system: not MueLu/AMG at
+        all, but FROSch, a two-level overlapping Schwarz method with EXACT
+        local subdomain solves (Pardiso) at both the local overlapping
+        level and the coarse (rotation-aware RGDSW) level, a
+        substantially stronger preconditioner class than anything tried
+        here so far. As a fast, decisive check of whether the assembled
+        matrix/RHS are themselves sound, independent of preconditioner
+        quality, switched to "trilinos-amesos2": an exact direct
+        factorization (Amesos2/KLU2, already linked in via MueLu's own
+        coarse solve) wrapped as a Tpetra_Operator "preconditioner", so
+        GMRES should converge in essentially one iteration if the linear
+        system itself is correct. This equation's test meshes are small (a
+        few thousand dof), so a direct solve is cheap here; this is a
+        validation step, not a scalable choice for larger meshes. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
-         <Preconditioner> trilinos-blockjacobi-uc </Preconditioner>
+         <Preconditioner> trilinos-amesos2 </Preconditioner>
       </Linear_algebra>
       <Tolerance> 1e-6 </Tolerance>
       <Max_iterations> 100 </Max_iterations>
