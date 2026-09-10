@@ -153,26 +153,16 @@
         already has this same ~5e5 conditioning, so it's intrinsic to the
         large-strain anisotropic CCB tangent itself, not something a
         diagonal-only preconditioner can fix. Switched to the Trilinos
-        backend; requires building with -DSV_USE_TRILINOS=ON and
-        -DCMAKE_PREFIX_PATH=<path-to-trilinos>/lib/cmake/Trilinos.
-        Tried "trilinos-ml" (MueLu algebraic multigrid) first, the
+        backend with "trilinos-ml" (MueLu algebraic multigrid), the
         preconditioner svMultiPhysics's own docs (Code/Source/solver/
         README-trilinos.md) recommend for displacement-based structural
-        problems, but it still failed to converge within 100 GMRES
-        iterations even once genuinely engaged (confirmed via its own
-        verbose parameter dump); likely because setMueLuPreconditioner()'s
-        hardcoded defaults (Code/Source/solver/trilinos_impl.cpp) are
-        tuned for FSI, and its "number of equations"=dof=4 amalgamation
-        assumes uniform-physics dof, whereas this system mixes 3 elastic
-        components with 1 unrelated (fully decoupled) diffusion dof under
-        that same block size, likely confusing AMG's aggregation/nullspace
-        logic. Switched to "trilinos-ilut" (ILU with fill threshold, via
-        additive Schwarz), which per the same docs is far less sensitive
-        to this kind of problem-structure mismatch than AMG. If this also
-        doesn't converge well, "trilinos-riluk0" is the next thing to try. -->
+        problems; requires building with -DSV_USE_TRILINOS=ON and
+        -DCMAKE_PREFIX_PATH=<path-to-trilinos>/lib/cmake/Trilinos. If
+        MueLu isn't enabled in a given Trilinos install, "trilinos-ilut"
+        or "trilinos-riluk0" are the next things to try. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
-         <Preconditioner> trilinos-ilut </Preconditioner>
+         <Preconditioner> trilinos-ml </Preconditioner>
       </Linear_algebra>
       <Tolerance> 1e-6 </Tolerance>
       <Max_iterations> 100 </Max_iterations>
