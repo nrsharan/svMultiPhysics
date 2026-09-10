@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<svMultiPhysicsFile version="0.1">
+
+<GeneralSimulationParameters>
+  <!-- Time step segments (as in FEDDLib's "Timestepping Intervalls"), run
+       up to <Final_time>. One segment is used here: with exact linear solves
+       (trilinos-amesos2) svMultiPhysics's Newton iteration needs small
+       steps through the pressure ramp (see ../hollow_cylinder) and through
+       the reorientation phase (a jump to dt = 1 at t = 50 diverges). -->
+  <Continue_previous_simulation> 0 </Continue_previous_simulation>
+  <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
+  <Add_time_step_segment> <Start_time> 0.0 </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
+  <Final_time> 120.0 </Final_time>
+  <Spectral_radius_of_infinite_time_step> 0.50 </Spectral_radius_of_infinite_time_step>
+
+  <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
+  <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
+  <Increment_in_saving_VTK_files> 25 </Increment_in_saving_VTK_files>
+  <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
+
+  <Increment_in_saving_restart_files> 100 </Increment_in_saving_restart_files>
+
+  <Verbose> 1 </Verbose>
+  <Warning> 1 </Warning>
+  <Debug> 0 </Debug>
+
+</GeneralSimulationParameters>
+
+<Add_mesh name="msh" >
+  <Mesh_file_path> ../hollow_cylinder/mesh/mesh-complete.mesh.vtu </Mesh_file_path>
+
+  <Add_face name="bottom">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/bottom.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="top">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/top.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="outer">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/outer.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="inner">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/inner.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="pin0">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/pin0.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="pin1">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/pin1.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="pin2">
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/pin2.vtp </Face_file_path>
+  </Add_face>
+
+  <Mesh_scale_factor> 1.0 </Mesh_scale_factor>
+</Add_mesh>
+
+<Add_equation type="deformation-diffusion" >
+
+   <Coupled> true </Coupled>
+   <Min_iterations> 1 </Min_iterations>
+   <Max_iterations> 25 </Max_iterations>
+   <Tolerance> 1e-5 </Tolerance>
+
+   <Integration_code> 18 </Integration_code>
+   <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+   <CCBActiveCMMGandR>
+     <fA> 30 </fA>
+     <kEtaPlus> 0.6 </kEtaPlus>
+     <mEtaPlus> 5 </mEtaPlus>
+     <Alpha1> 11.52507 </Alpha1>
+     <Alpha2> 151.73775 </Alpha2>
+     <Alpha3> 2.75662 </Alpha3>
+     <Alpha4> 1.27631 </Alpha4>
+     <Alpha5> 3.08798 </Alpha5>
+     <GroundGrowthBool> 0 </GroundGrowthBool>
+     <ReorientationBool> 0 </ReorientationBool>
+     <CollRemodelingBool> 0 </CollRemodelingBool>
+     <Density> 1 </Density>
+     <ElastinFrac> 0.370370370 </ElastinFrac>
+     <CollagenFrac> 0.370370370 </CollagenFrac>
+     <TElastin> 1000 </TElastin>
+     <TCollagen> 1000 </TCollagen>
+     <KElastin> 1 </KElastin>
+     <KCollagen> 1 </KCollagen>
+     <IHomo> 50 </IHomo>
+     <QMax> 1 </QMax>
+     <QMin> 0.2 </QMin>
+     <AlphaMech> 1 </AlphaMech>
+     <PCirc> 1 </PCirc>
+     <PAx> 1 </PAx>
+     <PRad> 1 </PRad>
+     <GNInit> 1.008 </GNInit>
+     <TC> 1000 </TC>
+     <LambdaC50> 1.2 </LambdaC50>
+     <Gamma3Max> 0.9 </Gamma3Max>
+     <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+     <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+     <Gamma2> 50 </Gamma2>
+     <Gamma1Max> 0.5131 </Gamma1Max>
+     <Eta> 0.1624 </Eta>
+     <Ca50> 0.4 </Ca50>
+     <K3> 0.134 </K3>
+     <K4> 0.00166 </K4>
+     <K7> 6.6e-05 </K7>
+     <Kappa> 148.262 </Kappa>
+     <Beta1> 0.001006 </Beta1>
+     <MuA> 11.857 </MuA>
+     <Beta2> 26.68 </Beta2>
+     <Gamma6> 1.5 </Gamma6>
+     <LambdaP50> 1 </LambdaP50>
+     <KDotMin> -0.0010694 </KDotMin>
+     <Zeta1> 100 </Zeta1>
+     <KDotMax> 0.0009735 </KDotMax>
+     <Gamma4> 200 </Gamma4>
+     <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+     <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+     <Gamma5> 50 </Gamma5>
+     <Zeta2> 1000 </Zeta2>
+     <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+     <Gamma1Min> 0.0779791039 </Gamma1Min>
+     <Gamma3Min> 0.136778783 </Gamma3Min>
+     <C50> 0.6673453236 </C50>
+     <D0> 7e-3 </D0>
+     <M> 0 </M>
+     <ActiveStartTime> 1000 </ActiveStartTime>
+     <KMin> 0.15 </KMin>
+     <ActiveBool> 0 </ActiveBool>
+     <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+     <P> 2.958083521 </P>
+     <TSMC> 1000 </TSMC>
+     <SMCFrac> 0.259259259 </SMCFrac>
+     <NCOpt> 0.6 </NCOpt>
+     <AlphaBio> 1 </AlphaBio>
+     <KSMC> 1 </KSMC>
+     <SMCGrowthBool> 0 </SMCGrowthBool>
+     <PostProcessingType> 1 </PostProcessingType>
+     <PostProcessingPower> 1 </PostProcessingPower>
+     <!-- Domain-data switches on (1) inside and off (0) outside their
+          intervals: reorientation, then growth of the ground matrix and the
+          smooth muscle cells, with the growth orientation initialized when
+          growth first switches on. -->
+     <Time_segments parameter="ReorientationBool">
+       <Add_interval> <Start_time> 50.0 </Start_time> <End_time> 70.0 </End_time> </Add_interval>
+     </Time_segments>
+     <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
+       <Add_interval> <Start_time> 70.0 </Start_time> <End_time> 100.0 </End_time> </Add_interval>
+     </Time_segments>
+     <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
+       <Add_interval> <Start_time> 70.0 </Start_time> <End_time> 100.0 </End_time> </Add_interval>
+     </Time_segments>
+   </CCBActiveCMMGandR>
+
+   <Output type="Spatial" >
+     <Displacement> true </Displacement>
+     <Concentration> true </Concentration>
+   </Output>
+
+   <!-- Exact linear solves: trilinos-amesos2 uses a KLU2 direct
+        factorization as the GMRES preconditioner, so each Newton system is
+        solved in about one iteration. This is fine for a mesh this small but
+        is not a scalable choice. The system is badly conditioned (stiff
+        displacement block next to a diffusion block with D0 = 6e-5); FSILS
+        GMRES, trilinos-ml, trilinos-ilut and trilinos-blockjacobi-uc do not
+        reach the tolerance within the iteration budget. -->
+   <LS type="GMRES" >
+      <Linear_algebra type="trilinos" >
+         <Preconditioner> trilinos-amesos2 </Preconditioner>
+      </Linear_algebra>
+      <Tolerance> 1e-6 </Tolerance>
+      <Max_iterations> 100 </Max_iterations>
+      <Krylov_space_dimension> 50 </Krylov_space_dimension>
+   </LS>
+
+   <!-- Statically-determinate constraint set (a plain or Effective_direction
+        Dir BC on this dof=nsd+1 equation only ever touches the 3 spatial
+        displacement components; the concentration dof cannot be
+        Dirichlet-constrained at all in the current implementation):
+        - both end faces axially fixed (u_z=0) removes z-translation and
+          bending/tilt rotation about the x and y axes (3 modes);
+        - 3 points on the outer surface, evenly spaced in angle, each with
+          its own local circumferential (tangential) direction pinned to
+          zero, removes x/y translation and rotation about the axis (3
+          modes); see generate_mesh.py's pick_circumferential_pin_nodes()
+          for how these nodes/directions were computed. -->
+   <Add_BC name="bottom" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 0, 1) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="top" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 0, 1) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="pin0" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 1, 0) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="pin1" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (1, 0, 0) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="pin2" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 1, 0) </Effective_direction>
+   </Add_BC>
+
+   <!-- Internal pressure, applied as a follower (deformed-configuration)
+        load on the lumen wall: ramped linearly 0 to 20 over 50 s, then held
+        (load.dat with Ramp_function). -->
+   <Add_BC name="inner" >
+      <Type> Neu </Type>
+      <Time_dependence> Unsteady </Time_dependence>
+      <Temporal_values_file_path> load.dat </Temporal_values_file_path>
+      <Ramp_function> true </Ramp_function>
+      <Follower_pressure_load> true </Follower_pressure_load>
+   </Add_BC>
+
+
+   <!-- Concentration c = 1 on the lumen and adventitial walls from t = 100
+        (conc.dat): an Effective_direction with nsd+1 entries whose last entry
+        is nonzero prescribes the concentration dof. -->
+   <Add_BC name="inner" >
+      <Type> Dir </Type>
+      <Effective_direction> (0, 0, 0, 1) </Effective_direction>
+      <Time_dependence> Unsteady </Time_dependence>
+      <Temporal_values_file_path> conc.dat </Temporal_values_file_path>
+      <Ramp_function> true </Ramp_function>
+   </Add_BC>
+
+   <Add_BC name="outer" >
+      <Type> Dir </Type>
+      <Effective_direction> (0, 0, 0, 1) </Effective_direction>
+      <Time_dependence> Unsteady </Time_dependence>
+      <Temporal_values_file_path> conc.dat </Temporal_values_file_path>
+      <Ramp_function> true </Ramp_function>
+   </Add_BC>
+
+</Add_equation>
+
+</svMultiPhysicsFile>
