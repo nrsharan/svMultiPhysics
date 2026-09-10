@@ -217,6 +217,153 @@ void FsilsLinearAlgebra::solve(ComMod& com_mod, eqType& lEq, const Vector<int>& 
     overrideCallCount++;
   }
 
+  // TEMPORARY DIAGNOSTIC: see fsils_diag_exact_direct_solve() below.
+  bool fsils_diag_exact_direct_solve(ComMod& com_mod, eqType& lEq, const Vector<int>& incL);
+  if (fsils_diag_exact_direct_solve(com_mod, lEq, incL)) {
+    return;
+  }
+
   fsi_linear_solver::fsils_solve(lhs, lEq.FSILS, dof, R, Val, preconditioner, incL, res);
+}
+
+#include <Eigen/Sparse>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <stdexcept>
+#include <vector>
+
+// TEMPORARY DIAGNOSTIC: when EXACT_DIRECT_SOLVE is set, solve the raw
+// assembled system exactly (Eigen SparseLU) under the same per-component
+// Dirichlet mask FSILS and Trilinos apply (face.val on BC_TYPE_Dir faces),
+// in place of FSILS's Krylov solve -- reproduces exact-Newton behavior
+// locally without a Trilinos build. EXACT_DIRECT_MAX_STEP, if set, caps
+// max|du| per Newton step by uniformly scaling the update (crude step-size
+// control, for testing whether globalization alone changes convergence).
+bool fsils_diag_exact_direct_solve(ComMod& com_mod, eqType& lEq, const Vector<int>& incL)
+{
+  if (!std::getenv("EXACT_DIRECT_SOLVE")) {
+    return false;
+  }
+  static int callCount = 0;
+  const auto t0 = std::chrono::steady_clock::now();
+  auto& lhs = com_mod.lhs;
+  auto& R = com_mod.R;
+  const auto& Val = com_mod.Val;
+  const int dof = com_mod.dof;
+  const int nsd = com_mod.nsd;
+  const int nNo = lhs.nNo;
+  const int N = dof * nNo;
+
+  std::vector<double> mask(N, 1.0);
+  for (int faIn = 0; faIn < lhs.nFaces; faIn++) {
+    const auto& face = lhs.face[faIn];
+    if ((incL.size() != 0 && incL(faIn) == 0) || face.bGrp != fsi_linear_solver::BcType::BC_TYPE_Dir) {
+      continue;
+    }
+    const int n = std::min(face.dof, dof);
+    for (int a = 0; a < face.nNo; a++) {
+      for (int i = 0; i < n; i++) {
+        mask[face.glob(a)*dof + i] *= face.val(i,a);
+      }
+    }
+  }
+
+  std::vector<int> freeIdx(N, -1);
+  int nFree = 0;
+  for (int k = 0; k < N; k++) {
+    if (mask[k] > 0.5) {
+      freeIdx[k] = nFree++;
+    }
+  }
+
+  std::vector<Eigen::Triplet<double>> trip;
+  trip.reserve(static_cast<size_t>(lhs.nnz) * dof * dof);
+  for (int a = 0; a < nNo; a++) {
+    for (int k = lhs.rowPtr(0,a); k <= lhs.rowPtr(1,a); k++) {
+      const int b = lhs.colPtr(k);
+      for (int i = 0; i < dof; i++) {
+        const int r = freeIdx[a*dof + i];
+        if (r < 0) {
+          continue;
+        }
+        for (int j = 0; j < dof; j++) {
+          const int c = freeIdx[b*dof + j];
+          const double v = Val(i*dof + j, k);
+          if (c >= 0 && v != 0.0) {
+            trip.emplace_back(r, c, v);
+          }
+        }
+      }
+    }
+  }
+  Eigen::SparseMatrix<double> A(nFree, nFree);
+  A.setFromTriplets(trip.begin(), trip.end());
+
+  std::vector<double> bl(N, 0.0);
+  for (int a = 0; a < nNo; a++) {
+    for (int i = 0; i < dof; i++) {
+      bl[lhs.map(a)*dof + i] = R(i,a);
+    }
+  }
+  Eigen::VectorXd rhs(nFree);
+  for (int k = 0; k < N; k++) {
+    if (freeIdx[k] >= 0) {
+      rhs(freeIdx[k]) = bl[k];
+    }
+  }
+
+  Eigen::SparseLU<Eigen::SparseMatrix<double>> lu;
+  lu.analyzePattern(A);
+  lu.factorize(A);
+  if (lu.info() != Eigen::Success) {
+    throw std::runtime_error("[EXACT_DIRECT_SOLVE] SparseLU factorization failed (singular system) at call " +
+                             std::to_string(callCount));
+  }
+  const Eigen::VectorXd x = lu.solve(rhs);
+  const double iNorm = rhs.norm();
+  const double fNorm = (A*x - rhs).norm();
+
+  std::vector<double> xl(N, 0.0);
+  for (int k = 0; k < N; k++) {
+    if (freeIdx[k] >= 0) {
+      xl[k] = x(freeIdx[k]);
+    }
+  }
+  double maxDu = 0.0;
+  int maxNode = -1;
+  for (int a = 0; a < nNo; a++) {
+    for (int i = 0; i < nsd && i < dof; i++) {
+      if (std::abs(xl[a*dof + i]) > maxDu) {
+        maxDu = std::abs(xl[a*dof + i]);
+        maxNode = a;
+      }
+    }
+  }
+  double scale = 1.0;
+  if (const char* capEnv = std::getenv("EXACT_DIRECT_MAX_STEP")) {
+    const double cap = std::atof(capEnv);
+    if (cap > 0.0 && maxDu > cap) {
+      scale = cap / maxDu;
+    }
+  }
+  for (int a = 0; a < nNo; a++) {
+    for (int i = 0; i < dof; i++) {
+      R(i,a) = scale * xl[lhs.map(a)*dof + i];
+    }
+  }
+
+  lEq.FSILS.RI.iNorm = iNorm;
+  lEq.FSILS.RI.fNorm = fNorm;
+  lEq.FSILS.RI.itr = 1;
+  lEq.FSILS.RI.success = true;
+  lEq.FSILS.RI.dB = (iNorm > 0.0 && fNorm > 0.0) ? 10.0 * std::log10(fNorm / iNorm) : 0.0;
+  lEq.FSILS.RI.callD = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+
+  std::cerr << "[EXACT_DIRECT_SOLVE] call " << callCount << ": ||R_masked||=" << iNorm
+            << " lin.res=" << fNorm / std::max(iNorm, 1e-300) << " max|du|=" << maxDu
+            << " (lhs node " << maxNode << ") step scale=" << scale << "\n";
+  callCount++;
+  return true;
 }
 
