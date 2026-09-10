@@ -972,8 +972,10 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   Teuchos::RCP<Tpetra_CrsMatrix> uMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(uMap, size_t(50)));
   Teuchos::RCP<Tpetra_CrsMatrix> cMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(cMap, size_t(50)));
 
-  Teuchos::Array<GO> rowIndices(50);
-  Teuchos::Array<Scalar_d> rowValues(50);
+  // Tpetra_CrsMatrix::getGlobalRowCopy takes Kokkos::View-based row-copy
+  // buffers (not Teuchos::ArrayView) in this Trilinos version.
+  Tpetra_CrsMatrix::nonconst_global_inds_host_view_type rowIndices("rowIndices", 50);
+  Tpetra_CrsMatrix::nonconst_values_host_view_type rowValues("rowValues", 50);
 
   for (LO lid = 0; lid < numLocalDofs; ++lid)
   {
@@ -982,13 +984,13 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
     bool isU = (d != dof - 1);
 
     size_t numEntries = K->getNumEntriesInGlobalRow(gid);
-    if (numEntries > static_cast<size_t>(rowIndices.size()))
+    if (numEntries > rowIndices.extent(0))
     {
-      rowIndices.resize(numEntries);
-      rowValues.resize(numEntries);
+      Kokkos::resize(rowIndices, numEntries);
+      Kokkos::resize(rowValues, numEntries);
     }
     size_t numCopied = 0;
-    K->getGlobalRowCopy(gid, rowIndices(), rowValues(), numCopied);
+    K->getGlobalRowCopy(gid, rowIndices, rowValues, numCopied);
 
     Teuchos::Array<GO> blockCols;
     Teuchos::Array<Scalar_d> blockVals;
@@ -996,12 +998,12 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
     blockVals.reserve(numCopied);
     for (size_t k = 0; k < numCopied; ++k)
     {
-      int colD = static_cast<int>(rowIndices[k] % dof);
+      int colD = static_cast<int>(rowIndices(k) % dof);
       bool colIsU = (colD != dof - 1);
       if (colIsU == isU)
       {
-        blockCols.push_back(rowIndices[k]);
-        blockVals.push_back(rowValues[k]);
+        blockCols.push_back(rowIndices(k));
+        blockVals.push_back(rowValues(k));
       }
     }
 
