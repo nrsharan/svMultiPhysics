@@ -935,24 +935,37 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   // rest are the 3 elastic displacement dof.
   std::vector<GO> uGids, cGids;
   std::vector<LO> uLocalToFullLocal, cLocalToFullLocal;
+  // Per-row capacity bounds for uMatrix/cMatrix below, in the same local-row
+  // order as uGids/cGids (i.e. uMap/cMap's local ordering). Using each row's
+  // full (unfiltered) nnz count in K as its bound is always sufficient --
+  // block-filtering only ever drops entries, never adds them -- and this
+  // Trilinos version enforces the constructor's per-row hint as a hard,
+  // non-growable capacity rather than a resizable estimate (a fixed
+  // guess of 50 was observed to be too small: one row needed 66).
+  std::vector<size_t> uRowNnz, cRowNnz;
   uGids.reserve(numLocalDofs);
   cGids.reserve(numLocalDofs);
   uLocalToFullLocal.reserve(numLocalDofs);
   cLocalToFullLocal.reserve(numLocalDofs);
+  uRowNnz.reserve(numLocalDofs);
+  cRowNnz.reserve(numLocalDofs);
 
   for (LO lid = 0; lid < numLocalDofs; ++lid)
   {
     GO gid = fullMap->getGlobalElement(lid);
     int d = static_cast<int>(gid % dof);
+    size_t numEntries = K->getNumEntriesInGlobalRow(gid);
     if (d == dof - 1)
     {
       cGids.push_back(gid);
       cLocalToFullLocal.push_back(lid);
+      cRowNnz.push_back(numEntries);
     }
     else
     {
       uGids.push_back(gid);
       uLocalToFullLocal.push_back(lid);
+      uRowNnz.push_back(numEntries);
     }
   }
 
@@ -969,8 +982,8 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   // as they are whenever this equation's active/growth/reorientation
   // mechanisms are switched off; a standard block-Jacobi approximation
   // otherwise).
-  Teuchos::RCP<Tpetra_CrsMatrix> uMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(uMap, size_t(50)));
-  Teuchos::RCP<Tpetra_CrsMatrix> cMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(cMap, size_t(50)));
+  Teuchos::RCP<Tpetra_CrsMatrix> uMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(uMap, uRowNnz));
+  Teuchos::RCP<Tpetra_CrsMatrix> cMatrix = Teuchos::rcp(new Tpetra_CrsMatrix(cMap, cRowNnz));
 
   // Tpetra_CrsMatrix::getGlobalRowCopy takes Kokkos::View-based row-copy
   // buffers (not Teuchos::ArrayView) in this Trilinos version.
