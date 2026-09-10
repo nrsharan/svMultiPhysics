@@ -871,44 +871,51 @@ void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_)
 void BlockJacobiUCTpetraOperator::apply(const Tpetra_MultiVector& X, Tpetra_MultiVector& Y,
     Teuchos::ETransp mode, Scalar_d alpha, Scalar_d beta) const
 {
-  const size_t numVecs = X.getNumVectors();
-
-  Teuchos::RCP<Tpetra_MultiVector> Xu = Teuchos::rcp(new Tpetra_MultiVector(uMap_, numVecs));
-  Teuchos::RCP<Tpetra_MultiVector> Xc = Teuchos::rcp(new Tpetra_MultiVector(cMap_, numVecs));
-  Teuchos::RCP<Tpetra_MultiVector> Yu = Teuchos::rcp(new Tpetra_MultiVector(uMap_, numVecs));
-  Teuchos::RCP<Tpetra_MultiVector> Yc = Teuchos::rcp(new Tpetra_MultiVector(cMap_, numVecs));
-
+  try
   {
-    auto Xview = X.getLocalViewHost(Tpetra::Access::ReadOnly);
-    auto Xuview = Xu->getLocalViewHost(Tpetra::Access::ReadWrite);
-    auto Xcview = Xc->getLocalViewHost(Tpetra::Access::ReadWrite);
-    for (size_t j = 0; j < numVecs; ++j)
+    const size_t numVecs = X.getNumVectors();
+
+    Teuchos::RCP<Tpetra_MultiVector> Xu = Teuchos::rcp(new Tpetra_MultiVector(uMap_, numVecs));
+    Teuchos::RCP<Tpetra_MultiVector> Xc = Teuchos::rcp(new Tpetra_MultiVector(cMap_, numVecs));
+    Teuchos::RCP<Tpetra_MultiVector> Yu = Teuchos::rcp(new Tpetra_MultiVector(uMap_, numVecs));
+    Teuchos::RCP<Tpetra_MultiVector> Yc = Teuchos::rcp(new Tpetra_MultiVector(cMap_, numVecs));
+
     {
-      for (size_t k = 0; k < uLocalToFullLocal_.size(); ++k)
-        Xuview(k, j) = Xview(uLocalToFullLocal_[k], j);
-      for (size_t k = 0; k < cLocalToFullLocal_.size(); ++k)
-        Xcview(k, j) = Xview(cLocalToFullLocal_[k], j);
+      auto Xview = X.getLocalViewHost(Tpetra::Access::ReadOnly);
+      auto Xuview = Xu->getLocalViewHost(Tpetra::Access::ReadWrite);
+      auto Xcview = Xc->getLocalViewHost(Tpetra::Access::ReadWrite);
+      for (size_t j = 0; j < numVecs; ++j)
+      {
+        for (size_t k = 0; k < uLocalToFullLocal_.size(); ++k)
+          Xuview(k, j) = Xview(uLocalToFullLocal_[k], j);
+        for (size_t k = 0; k < cLocalToFullLocal_.size(); ++k)
+          Xcview(k, j) = Xview(cLocalToFullLocal_[k], j);
+      }
     }
+
+    uPrec_->apply(*Xu, *Yu);
+    cPrec_->apply(*Xc, *Yc);
+
+    Teuchos::RCP<Tpetra_MultiVector> Ytmp = Teuchos::rcp(new Tpetra_MultiVector(fullMap_, numVecs));
+    {
+      auto Ytmpview = Ytmp->getLocalViewHost(Tpetra::Access::ReadWrite);
+      auto Yuview = Yu->getLocalViewHost(Tpetra::Access::ReadOnly);
+      auto Ycview = Yc->getLocalViewHost(Tpetra::Access::ReadOnly);
+      for (size_t j = 0; j < numVecs; ++j)
+      {
+        for (size_t k = 0; k < uLocalToFullLocal_.size(); ++k)
+          Ytmpview(uLocalToFullLocal_[k], j) = Yuview(k, j);
+        for (size_t k = 0; k < cLocalToFullLocal_.size(); ++k)
+          Ytmpview(cLocalToFullLocal_[k], j) = Ycview(k, j);
+      }
+    }
+
+    Y.update(alpha, *Ytmp, beta);
   }
-
-  uPrec_->apply(*Xu, *Yu);
-  cPrec_->apply(*Xc, *Yc);
-
-  Teuchos::RCP<Tpetra_MultiVector> Ytmp = Teuchos::rcp(new Tpetra_MultiVector(fullMap_, numVecs));
+  catch (const std::exception &e)
   {
-    auto Ytmpview = Ytmp->getLocalViewHost(Tpetra::Access::ReadWrite);
-    auto Yuview = Yu->getLocalViewHost(Tpetra::Access::ReadOnly);
-    auto Ycview = Yc->getLocalViewHost(Tpetra::Access::ReadOnly);
-    for (size_t j = 0; j < numVecs; ++j)
-    {
-      for (size_t k = 0; k < uLocalToFullLocal_.size(); ++k)
-        Ytmpview(uLocalToFullLocal_[k], j) = Yuview(k, j);
-      for (size_t k = 0; k < cLocalToFullLocal_.size(); ++k)
-        Ytmpview(cLocalToFullLocal_[k], j) = Ycview(k, j);
-    }
+    throw std::runtime_error(std::string("[BlockJacobiUCTpetraOperator::apply] failed: ") + e.what());
   }
-
-  Y.update(alpha, *Ytmp, beta);
 } // BlockJacobiUCTpetraOperator::apply
 
 // ----------------------------------------------------------------------------
@@ -1026,26 +1033,61 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
       cMatrix->insertGlobalValues(gid, blockCols(), blockVals());
   }
 
-  uMatrix->fillComplete(uMap, uMap);
-  cMatrix->fillComplete(cMap, cMap);
+  // Each stage below is fenced with its own try/catch and rethrown with a
+  // stage tag prepended to e.what(). The exceptions Trilinos throws from
+  // deep inside MueLu/Ifpack2/Tpetra carry no location info by the time
+  // they reach svMultiPhysics's top-level catch, so this is the cheapest
+  // way to localize a failure without a cluster debugger (ptrace is
+  // blocked there).
+  try
+  {
+    uMatrix->fillComplete(uMap, uMap);
+    cMatrix->fillComplete(cMap, cMap);
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[setBlockJacobiUCPreconditioner] fillComplete failed: ") + e.what());
+  }
 
-  checkDiagonalIsZero(uMatrix);
-  checkDiagonalIsZero(cMatrix);
+  try
+  {
+    checkDiagonalIsZero(uMatrix);
+    checkDiagonalIsZero(cMatrix);
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[setBlockJacobiUCPreconditioner] checkDiagonalIsZero failed: ") + e.what());
+  }
 
   // u block: MueLu, with the physically correct "number of equations"=3.
   Teuchos::RCP<Tpetra_Operator> uPrec;
-  setMueLuPreconditioner(uPrec, uMatrix, dof - 1);
+  try
+  {
+    setMueLuPreconditioner(uPrec, uMatrix, dof - 1);
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[setBlockJacobiUCPreconditioner] setMueLuPreconditioner(u block) failed: ") + e.what());
+  }
 
   // c block: small, diagonally-dominant scalar diffusion operator --
   // Gauss-Seidel relaxation is more than sufficient.
-  Ifpack2::Factory factory;
-  Teuchos::RCP<Ifpack2_Preconditioner> cPrec = factory.create<Tpetra_CrsMatrix>("RELAXATION", cMatrix);
-  Teuchos::ParameterList cPrecParams;
-  cPrecParams.set("relaxation: type", "Gauss-Seidel");
-  cPrecParams.set("relaxation: sweeps", 2);
-  cPrec->setParameters(cPrecParams);
-  cPrec->initialize();
-  cPrec->compute();
+  Teuchos::RCP<Ifpack2_Preconditioner> cPrec;
+  try
+  {
+    Ifpack2::Factory factory;
+    cPrec = factory.create<Tpetra_CrsMatrix>("RELAXATION", cMatrix);
+    Teuchos::ParameterList cPrecParams;
+    cPrecParams.set("relaxation: type", "Gauss-Seidel");
+    cPrecParams.set("relaxation: sweeps", 2);
+    cPrec->setParameters(cPrecParams);
+    cPrec->initialize();
+    cPrec->compute();
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[setBlockJacobiUCPreconditioner] c block Ifpack2 RELAXATION setup failed: ") + e.what());
+  }
 
   blockJacobiPrec = Teuchos::rcp(new BlockJacobiUCTpetraOperator(
       fullMap, uMap, cMap, uLocalToFullLocal, cLocalToFullLocal, uPrec, cPrec));
