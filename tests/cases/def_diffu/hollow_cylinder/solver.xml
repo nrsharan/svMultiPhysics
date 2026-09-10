@@ -53,7 +53,22 @@
   </Add_face>
 
   <Mesh_scale_factor> 1.0 </Mesh_scale_factor>
-  <Initial_displacements_file_path> mesh/initial_displacement.vtu </Initial_displacements_file_path>
+  <!-- mesh/initial_displacement.vtu (a ~17% radially-outward prestretch,
+       no reference/pin-down as to why: no checked-in script generates or
+       documents it) was removed here. It gave svMultiPhysics a different
+       starting state than FEDDLib's plain undeformed reference
+       configuration, which was confirmed (via the raw-matrix/residual
+       comparison) to fully explain an ~8000x residual-norm mismatch
+       between the two codes at the first Newton iteration, and is a
+       strong candidate for the iteration-1-3 Newton divergence seen with
+       the exact-solve (trilinos-amesos2) test too, since Newton's first
+       steps would otherwise be correcting a large pre-existing imbalance
+       from a stale prestretch (computed before this session's
+       ElastinFrac/CollagenFrac/SMCFrac fix changed the zero-stress
+       state), not just responding to the small first-step pressure
+       increment. This test is meant to be purely passive/load-driven
+       (all active/growth/reorientation bools off), matching FEDDLib's
+       setup, which has no equivalent prestretch. -->
 </Add_mesh>
 
 <Add_equation type="deformation-diffusion" >
