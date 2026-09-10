@@ -548,14 +548,6 @@ void iterate_solution(Simulation* simulation)
     // step has converged.
     def_diffu::commit_history(com_mod);
 
-    // This element is rate-independent whenever its active/growth/
-    // remodeling domain-data Bool flags are off (see def_diffu::reset_
-    // dynamics()'s doc comment): each "time step" is really a load
-    // increment, so the velocity/acceleration accumulated while Newton-
-    // converging to it must not carry forward into the next increment's
-    // predictor as if it were real inertial memory.
-    def_diffu::reset_dynamics(com_mod, solutions);
-
   } // End of outer loop
 
   #ifdef debug_iterate_solution

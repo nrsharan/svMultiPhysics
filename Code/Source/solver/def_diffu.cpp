@@ -8,15 +8,15 @@
 // inner Gauss-point loop: Interface2 integrates all Gauss points internally
 // in one compute() call per element.
 //
-// Time integration is quasi-static, as in FEDDLib's implementation of this
-// element (feddlib/core/AceFemAssembly/specific/
-// AssembleFE_SCI_SMC_CMM_Active_Growth_Reorientation_def.hpp): the
-// accelerations are zero and the element's inertia residual (Rdyn) and mass
-// matrix (Mu) are not assembled. The tangent is d(residual)/d(state):
-// Kuu/Kuc/Kcu unscaled and Kcc + Mc/dt, with the concentration rate taken by
-// backward Euler from the last converged state. The Newton unknown is
-// therefore the state increment itself, so Integrator::corrector() applies
-// Dn -= R directly for phys_def_diffu instead of the Newmark relations.
+// Time integration uses svMultiPhysics's generalized-alpha scheme, as for
+// the struct equation (see sv_struct.cpp): the element is evaluated at the
+// intermediate state (displacement and concentration from Dg, acceleration
+// from Ag, concentration rate from Yg), its residual includes the inertia
+// term Rdyn, and the tangent is taken with respect to the acceleration
+// unknown: am*Mu + af*gam*dt*Mc + af*beta*dt^2*K, with K the element's
+// d(residual)/d(displacement, concentration). The displacement and
+// concentration dofs are then advanced by the Newmark relations in
+// Integrator::corrector(), like any other second-order equation.
 
 #include "def_diffu.h"
 
@@ -35,19 +35,21 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
 {
   using namespace consts;
 
-  // Quasi-static assembly (see the header comment above): use the FULL
-  // current Newton iterate (Dn), not svMultiPhysics's generalized-alpha
-  // blended 'Dg' intermediate, and the last CONVERGED state (Do) to form a
-  // plain backward-Euler concentration rate -- exactly matching FEDDLib's
-  // reference implementation of this element's sibling.
-  const auto& Dn = solutions.current.get_displacement();
-  const auto& Do = solutions.old.get_displacement();
+  const auto& Ag = solutions.intermediate.get_acceleration();
+  const auto& Yg = solutions.intermediate.get_velocity();
+  const auto& Dg = solutions.intermediate.get_displacement();
 
   const int nsd = com_mod.nsd;
   const int cEq = com_mod.cEq;
   auto& eq = com_mod.eq[cEq];
   auto& cDmn = com_mod.cDmn;
   const double dt = com_mod.dt;
+
+  // Derivatives of the intermediate acceleration, rate and state with
+  // respect to the acceleration unknown (see sv_struct.cpp).
+  const double am = eq.am;
+  const double afv = eq.af * eq.gam * dt;
+  const double afu = eq.af * eq.beta * dt * dt;
 
   const int eNoN = lM.eNoN; // 10 for this Tet10 element
   const int dof = eq.dof;   // 4 (3 displacement + 1 concentration)
@@ -148,14 +150,12 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
 
       for (int i = 0; i < nsd; i++) {
         input.positions(i,a) = com_mod.x(i,Ac);
-        input.displacements(i,a) = Dn(eq.s+i, Ac);
-        input.accelerations(i,a) = 0.0;
+        input.displacements(i,a) = Dg(eq.s+i, Ac);
+        input.accelerations(i,a) = Ag(eq.s+i, Ac);
       }
 
-      double cNew = Dn(eq.s+nsd, Ac);
-      double cOld = Do(eq.s+nsd, Ac);
-      input.concentrations(a) = cNew;
-      input.rates(a) = (cNew - cOld) / dt;
+      input.concentrations(a) = Dg(eq.s+nsd, Ac);
+      input.rates(a) = Yg(eq.s+nsd, Ac);
     }
 
     auto output = ace_gen_cmm_smc::compute(input);
@@ -163,21 +163,16 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
     lR = 0.0;
     lK = 0.0;
 
-    // lRdyn/lKMass (Rdyn/Mu) are intentionally never added -- see the header
-    // comment. lKState is used unscaled (the Newton unknown is the state
-    // increment itself); lKRate only ever populates the concentration-
-    // concentration block (Mc), where dividing by dt turns it into the
-    // backward-Euler capacitance term Mc/dt added to Kcc.
     for (int a = 0; a < eNoN; a++) {
       for (int i = 0; i < dof; i++) {
-        lR(i,a) = output.lR(i,a);
+        lR(i,a) = output.lR(i,a) + output.lRdyn(i,a);
       }
     }
 
     for (int a = 0; a < eNoN; a++) {
       for (int b = 0; b < eNoN; b++) {
         for (int idx = 0; idx < dof*dof; idx++) {
-          lK(idx,a,b) = output.lKState(idx,a,b) + output.lKRate(idx,a,b)/dt;
+          lK(idx,a,b) = afu*output.lKState(idx,a,b) + afv*output.lKRate(idx,a,b) + am*output.lKMass(idx,a,b);
         }
       }
     }
@@ -198,23 +193,6 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
 void commit_history(ComMod& com_mod) {
   for (auto& [meshName, updated] : com_mod.ccbActiveCmmGandrHistoryUpdated) {
     com_mod.ccbActiveCmmGandrHistory[meshName] = updated;
-  }
-}
-
-void reset_dynamics(ComMod& com_mod, SolutionStates& solutions) {
-  auto& Yo = solutions.old.get_velocity();
-  auto& Ao = solutions.old.get_acceleration();
-
-  for (auto& eq : com_mod.eq) {
-    if (eq.phys != consts::EquationType::phys_def_diffu) {
-      continue;
-    }
-    for (int a = 0; a < com_mod.tnNo; a++) {
-      for (int i = eq.s; i <= eq.e; i++) {
-        Yo(i,a) = 0.0;
-        Ao(i,a) = 0.0;
-      }
-    }
   }
 }
 

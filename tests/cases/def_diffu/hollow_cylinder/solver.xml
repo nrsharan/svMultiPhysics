@@ -2,15 +2,23 @@
 <svMultiPhysicsFile version="0.1">
 
 <GeneralSimulationParameters>
+  <!-- Generalized-alpha time integration with inertia. The inner pressure is
+       ramped 0 to 20 over 50 s (load.dat) and then held for 5 s. The ramp is
+       slow compared with the wall's breathing mode (period about 2 s), so the
+       response stays close to quasi-static (within about 0.1%), and the
+       pressure increment per step (0.4% of the final value) is small enough
+       for the undamped Newton iteration with exact linear solves to converge
+       through the onset of collagen stiffening. Increments of 2% per step
+       make it diverge. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
-  <Number_of_time_steps> 50 </Number_of_time_steps>
+  <Number_of_time_steps> 275 </Number_of_time_steps>
   <Time_step_size> 0.2 </Time_step_size>
   <Spectral_radius_of_infinite_time_step> 0.50 </Spectral_radius_of_infinite_time_step>
 
   <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
   <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
-  <Increment_in_saving_VTK_files> 5 </Increment_in_saving_VTK_files>
+  <Increment_in_saving_VTK_files> 25 </Increment_in_saving_VTK_files>
   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
 
   <Increment_in_saving_restart_files> 100 </Increment_in_saving_restart_files>
@@ -144,13 +152,13 @@
      <Concentration> true </Concentration>
    </Output>
 
-   <!-- This system is badly conditioned (stiff displacement block next to a
-        diffusion block with D0 = 6e-5): FSILS GMRES with rcs, trilinos-ml,
-        trilinos-ilut and trilinos-blockjacobi-uc all fail to reach the
-        tolerance within the iteration budget. trilinos-amesos2 uses a KLU2
-        direct factorization as the GMRES preconditioner, so each Newton
-        system is solved in about one iteration. This is fine for a mesh this
-        small but is not a scalable choice. -->
+   <!-- Exact linear solves: trilinos-amesos2 uses a KLU2 direct
+        factorization as the GMRES preconditioner, so each Newton system is
+        solved in about one iteration. This is fine for a mesh this small but
+        is not a scalable choice. The system is badly conditioned (stiff
+        displacement block next to a diffusion block with D0 = 6e-5); FSILS
+        GMRES, trilinos-ml, trilinos-ilut and trilinos-blockjacobi-uc do not
+        reach the tolerance within the iteration budget. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
          <Preconditioner> trilinos-amesos2 </Preconditioner>
@@ -202,7 +210,8 @@
    </Add_BC>
 
    <!-- Internal pressure, applied as a follower (deformed-configuration)
-        load on the lumen wall. -->
+        load on the lumen wall: ramped linearly 0 to 20 over 50 s, then held
+        (load.dat with Ramp_function). -->
    <Add_BC name="inner" >
       <Type> Neu </Type>
       <Time_dependence> Unsteady </Time_dependence>
