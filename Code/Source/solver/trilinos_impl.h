@@ -61,8 +61,20 @@
 #include "MueLu_CreateTpetraPreconditioner.hpp"
 
 // Amesos2 includes (direct sparse solver, used as an exact-inverse
-// preconditioner -- see Amesos2DirectTpetraOperator)
-#include "Amesos2.hpp"
+// preconditioner -- see Amesos2DirectTpetraOperator). Deliberately NOT
+// including the umbrella "Amesos2.hpp" (-> Amesos2_Factory.hpp): in this
+// MKL_ILP64 build, Factory.hpp unconditionally drags in
+// Amesos2_PardisoMKL.hpp (needed for its runtime-string solver dispatch,
+// regardless of which solver is actually requested), whose
+// FunctionMap<PardisoMKL,...> has two specializations that collide once
+// MKL_ILP64 makes "long long" and PMKL::_INTEGER_t the same type -- a
+// genuine Trilinos header bug in this configuration. KLU2's own decl/def
+// headers have no PardisoMKL dependency at all, so including them
+// directly (and constructing Amesos2::KLU2 directly instead of going
+// through Amesos2::create()'s factory) sidesteps the broken header
+// entirely.
+#include "Amesos2_KLU2_decl.hpp"
+#include "Amesos2_KLU2_def.hpp"
 
 /**************************************************************/
 /*                      Types Definitions                     */
@@ -207,7 +219,7 @@ private:
 
 /**
  * \class Amesos2DirectTpetraOperator
- * \brief Wraps an Amesos2 direct sparse factorization (KLU2, already
+ * \brief Wraps an Amesos2 KLU2 direct sparse factorization (already
  *        linked in via MueLu's own "coarse: type"="KLU" coarse solve) as
  *        a Tpetra_Operator whose apply() computes an EXACT solve of
  *        A x = b, so it can be plugged into Belos as a left
@@ -218,15 +230,21 @@ private:
  *        whether an iterative preconditioner's poor convergence reflects
  *        the preconditioner rather than the assembled matrix itself --
  *        not a scalable production solver for large 3D meshes.
+ *
+ *        Constructs Amesos2::KLU2 directly (X/B left null, rebound per
+ *        call in apply() via setX()/setB(), exactly what Amesos2::create()
+ *        would do internally anyway) rather than going through
+ *        Amesos2::create()'s runtime-string factory, to avoid pulling in
+ *        Amesos2_Factory.hpp -- see the include comment above for why.
  */
 class Amesos2DirectTpetraOperator: public Tpetra_Operator
 {
 public:
-  Amesos2DirectTpetraOperator(const Teuchos::RCP<Tpetra_CrsMatrix>& A,
-                               const std::string& solverName = "KLU2")
+  explicit Amesos2DirectTpetraOperator(const Teuchos::RCP<Tpetra_CrsMatrix>& A)
     : map_(A->getRowMap())
   {
-    solver_ = Amesos2::create<Tpetra_CrsMatrix, Tpetra_MultiVector>(solverName, A);
+    solver_ = Teuchos::rcp(new Amesos2::KLU2<Tpetra_CrsMatrix, Tpetra_MultiVector>(
+        A, Teuchos::null, Teuchos::null));
     solver_->symbolicFactorization();
     solver_->numericFactorization();
   }
