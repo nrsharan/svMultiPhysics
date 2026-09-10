@@ -931,6 +931,34 @@ void set_bc_cpl(ComMod& com_mod, CmMod& cm_mod, const SolutionStates& solutions)
 ///
 /// Reproduces 'SUBROUTINE SETBCDIR(lA, lY, lD)'
 //
+/// @brief Prescribe the concentration dof of a deformation-diffusion
+/// Dirichlet BC as a state value: Dn = g and Yn = dg/dt at the face nodes.
+static void set_bc_dir_concentration(ComMod& com_mod, const eqType& eq, const bcType& bc,
+                                     Array<double>& Yn, Array<double>& Dn)
+{
+  using namespace consts;
+
+  double value = bc.g;
+  double derivative = 0.0;
+
+  if (utils::btest(bc.bType, enum_int(BoundaryConditionType::bType_ustd))) {
+    const auto [values, derivatives] = bc.gt.value_and_derivative(com_mod.time);
+    value = values[0];
+    derivative = derivatives[0];
+  } else if (utils::btest(bc.bType, enum_int(BoundaryConditionType::bType_gen))) {
+    throw std::runtime_error("[set_bc_dir] A concentration Dirichlet BC cannot use a spatial profile file.");
+  }
+
+  const int ic = eq.s + com_mod.nsd;
+  const auto& face = com_mod.msh[bc.iM].fa[bc.iFa];
+
+  for (int a = 0; a < face.nNo; a++) {
+    int Ac = face.gN(a);
+    Dn(ic,Ac) = value * bc.gx(a);
+    Yn(ic,Ac) = derivative * bc.gx(a);
+  }
+}
+
 void set_bc_dir(ComMod& com_mod, SolutionStates& solutions)
 {
   // Local aliases for solution arrays
@@ -1007,6 +1035,25 @@ void set_bc_dir(ComMod& com_mod, SolutionStates& solutions)
       dmsg << ">> s: " << s;
       dmsg << ">> e: " << e;
       #endif
+      // Deformation-diffusion: an Effective_direction with nsd+1 entries
+      // whose last entry is nonzero also prescribes the concentration.
+      if (eq.phys == EquationType::phys_def_diffu && bc.eDrn.size() > nsd) {
+        bool displacement_selected = false;
+        for (int i = 0; i < nsd; i++) {
+          if (bc.eDrn(i) != 0) {
+            displacement_selected = true;
+          }
+        }
+
+        if (bc.eDrn(nsd) != 0) {
+          set_bc_dir_concentration(com_mod, eq, bc, Yn, Dn);
+        }
+
+        if (!displacement_selected) {
+          continue;
+        }
+      }
+
       std::fill(eDir.begin(), eDir.end(), false);
       int lDof = 0;
 

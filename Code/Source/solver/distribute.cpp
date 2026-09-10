@@ -331,6 +331,17 @@ void distribute(Simulation* simulation)
     cm.bcast(cm_mod, &com_mod.startTS);
     cm.bcast(cm_mod, &com_mod.nEq);
     cm.bcast(cm_mod, &com_mod.dt);
+
+    cm.bcast(cm_mod, &com_mod.finalTime);
+    int nDtSegments = com_mod.dtSegments.size();
+    cm.bcast(cm_mod, &nDtSegments);
+    if (cm.slv(cm_mod)) {
+      com_mod.dtSegments.resize(nDtSegments);
+    }
+    for (auto& segment : com_mod.dtSegments) {
+      cm.bcast(cm_mod, &segment[0]);
+      cm.bcast(cm_mod, &segment[1]);
+    }
     cm.bcast(cm_mod, &com_mod.precompDt);
 
     cm.bcast(cm_mod, &com_mod.zeroAve);
@@ -627,8 +638,13 @@ void dist_bc(ComMod& com_mod, const CmMod& cm_mod, const cmType& cm, bcType& lBc
   dmsg << "is_slave: " << is_slave;
   #endif
 
+  // The effective direction has nsd entries, or nsd+1 for a
+  // deformation-diffusion BC that also selects the concentration dof.
+  int nDrn = lBc.eDrn.size();
+  cm.bcast(cm_mod, &nDrn);
+
   if (is_slave) {
-    lBc.eDrn.resize(nsd); 
+    lBc.eDrn.resize(nDrn);
     lBc.h.resize(nsd);
   }
 
@@ -1442,6 +1458,63 @@ void dist_uris_msh(ComMod& com_mod, const CmMod& cm_mod, const cmType& cm, mshTy
 
 }
 
+/// @brief Distribute the CCB constrained-mixture element data of a
+/// deformation-diffusion domain, which is read on the master rank only.
+static void dist_ccb_active_cmm_gandr(const CmMod& cm_mod, const cmType& cm, dmnType& dmn)
+{
+  auto& params = dmn.ccb_active_cmm_gandr_params;
+  int nParams = params.size();
+  cm.bcast(cm_mod, &nParams);
+
+  std::vector<std::string> names;
+  std::vector<double> values;
+  for (const auto& [name, value] : params) {
+    names.push_back(name);
+    values.push_back(value);
+  }
+  names.resize(nParams);
+  values.resize(nParams);
+
+  for (int i = 0; i < nParams; i++) {
+    cm.bcast(cm_mod, names[i]);
+    cm.bcast(cm_mod, &values[i]);
+  }
+
+  cm.bcast(cm_mod, &dmn.ccb_active_cmm_gandr_integration_code);
+  cm.bcast(cm_mod, &dmn.ccb_active_cmm_gandr_subiteration_tolerance);
+
+  if (cm.slv(cm_mod)) {
+    params.clear();
+    for (int i = 0; i < nParams; i++) {
+      params[names[i]] = values[i];
+    }
+    dmn.ccb_active_cmm_gandr_info = ace_gen_cmm_smc::get_element_info(dmn.ccb_active_cmm_gandr_integration_code);
+    dmn.ccb_active_cmm_gandr_domain_data = ace_gen_cmm_smc::build_domain_data(dmn.ccb_active_cmm_gandr_info, params);
+  }
+
+  auto& flags = dmn.ccb_active_cmm_gandr_flag_segments;
+  int nFlags = flags.size();
+  cm.bcast(cm_mod, &nFlags);
+  if (cm.slv(cm_mod)) {
+    flags.resize(nFlags);
+  }
+
+  for (auto& flag : flags) {
+    cm.bcast(cm_mod, flag.name);
+    cm.bcast(cm_mod, &flag.index);
+    cm.bcast(cm_mod, flag.initialization);
+    int nIntervals = flag.intervals.size();
+    cm.bcast(cm_mod, &nIntervals);
+    if (cm.slv(cm_mod)) {
+      flag.intervals.resize(nIntervals);
+    }
+    for (auto& interval : flag.intervals) {
+      cm.bcast(cm_mod, &interval[0]);
+      cm.bcast(cm_mod, &interval[1]);
+    }
+  }
+}
+
 void dist_eq(ComMod& com_mod, const CmMod& cm_mod, const cmType& cm, const std::vector<mshType>& tMs,
              const Vector<int>& gmtl, CepMod& cep_mod, eqType& lEq)
 {
@@ -1585,6 +1658,10 @@ void dist_eq(ComMod& com_mod, const CmMod& cm_mod, const cmType& cm, const std::
 
         dmn.active_stress->distribute_parameters(cm_mod, cm);
       }
+    }
+
+    if (dmn.phys == EquationType::phys_def_diffu) {
+      dist_ccb_active_cmm_gandr(cm_mod, cm, dmn);
     }
 
     if ((dmn.phys == EquationType::phys_struct) || (dmn.phys == EquationType::phys_ustruct)) {

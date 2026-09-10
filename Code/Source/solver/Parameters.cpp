@@ -2012,6 +2012,12 @@ void CCBActiveCMMGandRParameters::set_values(
   for (const XMLElement* item = xml_elem->FirstChildElement(); item != nullptr;
        item = item->NextSiblingElement()) {
     const std::string name = item->Value();
+
+    if (name == "Time_segments") {
+      set_time_segments(item);
+      continue;
+    }
+
     const char* text = item->GetText();
 
     if (text == nullptr) {
@@ -2042,6 +2048,71 @@ void CCBActiveCMMGandRParameters::print_parameters() const {
   for (const auto& [name, value] : parameters_) {
     std::cout << "  " << name << ": " << value << std::endl;
   }
+
+  for (const auto& segments : time_segments_) {
+    std::cout << "  Time_segments " << segments.parameter << ":";
+    for (const auto& interval : segments.intervals) {
+      std::cout << " [" << interval[0] << ", " << interval[1] << ")";
+    }
+    std::cout << std::endl;
+  }
+}
+
+void CCBActiveCMMGandRParameters::set_time_segments(const tinyxml2::XMLElement* xml_elem) {
+  using namespace tinyxml2;
+
+  TimeSegments segments;
+
+  const char* parameter = xml_elem->Attribute("parameter");
+  if (parameter == nullptr) {
+    svmp::raise<svmp::ParseException>(
+        "The " + xml_element_name_ + " Time_segments element requires a parameter=\"NAME\" attribute.");
+  }
+  segments.parameter = parameter;
+
+  if (const char* initialization = xml_elem->Attribute("initialization")) {
+    segments.initialization = initialization;
+  }
+
+  auto read_time = [&](const XMLElement* interval, const char* child_name) -> double {
+    const XMLElement* child = interval->FirstChildElement(child_name);
+    if (child == nullptr || child->GetText() == nullptr) {
+      svmp::raise<svmp::ParseException>("Time_segments parameter='" + segments.parameter +
+                                        "': each Add_interval requires <" + child_name + ">.");
+    }
+    try {
+      return std::stod(child->GetText());
+    } catch (const std::exception&) {
+      svmp::raise<svmp::ParseException>("Time_segments parameter='" + segments.parameter + "': <" +
+                                        child_name + "> value '" + child->GetText() + "' is not a number.");
+    }
+    return 0.0;
+  };
+
+  for (const XMLElement* interval = xml_elem->FirstChildElement(); interval != nullptr;
+       interval = interval->NextSiblingElement()) {
+    if (std::string(interval->Value()) != "Add_interval") {
+      svmp::raise<svmp::ParseException>("Unknown element '" + std::string(interval->Value()) +
+                                        "' in Time_segments; expected Add_interval.");
+    }
+
+    const double start = read_time(interval, "Start_time");
+    const double end = read_time(interval, "End_time");
+
+    if (!(end > start)) {
+      svmp::raise<svmp::ParseException>("Time_segments parameter='" + segments.parameter +
+                                        "': End_time must be later than Start_time.");
+    }
+
+    segments.intervals.push_back({start, end});
+  }
+
+  if (segments.intervals.empty()) {
+    svmp::raise<svmp::ParseException>("Time_segments parameter='" + segments.parameter +
+                                      "' requires at least one Add_interval.");
+  }
+
+  time_segments_.push_back(segments);
 }
 
 
@@ -2892,7 +2963,7 @@ GeneralSimulationParameters::GeneralSimulationParameters() {
                 number_of_initialization_time_steps, {0, int_inf});
   set_parameter("Number_of_spatial_dimensions", 3, !required,
                 number_of_spatial_dimensions);
-  set_parameter("Number_of_time_steps", 0, required, number_of_time_steps,
+  set_parameter("Number_of_time_steps", 0, !required, number_of_time_steps,
                 {0, int_inf});
 
   set_parameter("Overwrite_restart_file", false, !required,
@@ -2922,7 +2993,8 @@ GeneralSimulationParameters::GeneralSimulationParameters() {
                 start_saving_after_time_step);
   set_parameter("Starting time step", 0, !required, starting_time_step);
 
-  set_parameter("Time_step_size", 0.0, required, time_step_size);
+  set_parameter("Time_step_size", 0.0, !required, time_step_size);
+  set_parameter("Final_time", 0.0, !required, final_time);
   set_parameter("Verbose", false, !required, verbose);
   set_parameter("Warning", false, !required, warning);
 }
@@ -2969,6 +3041,41 @@ void GeneralSimulationParameters::set_values(tinyxml2::XMLElement *xml_element,
           "GeneralSimulationParameters Include_xml requires a file name.");
       IncludeParametersFile include_parameters(value);
       set_values(include_parameters.root_element, true);
+
+    } else if (name == "Add_time_step_segment") {
+      std::array<double,2> segment{0.0, 0.0};
+      bool has_start = false;
+      bool has_dt = false;
+
+      for (auto child = item->FirstChildElement(); child != nullptr; child = child->NextSiblingElement()) {
+        const std::string child_name = child->Value();
+        const std::string text = require_xml_text(child, "Add_time_step_segment element '" +
+                                                  child_name + "' requires a value.");
+        double value = 0.0;
+
+        try {
+          value = std::stod(text);
+        } catch (const std::exception&) {
+          svmp::raise<svmp::ParseException>("Add_time_step_segment element '" + child_name +
+                                            "' value '" + text + "' is not a number.");
+        }
+
+        if (child_name == "Start_time") {
+          segment[0] = value;
+          has_start = true;
+        } else if (child_name == "Time_step_size") {
+          segment[1] = value;
+          has_dt = true;
+        } else {
+          svmp::raise<svmp::ParseException>("Unknown Add_time_step_segment element '" + child_name + "'.");
+        }
+      }
+
+      if (!has_start || !has_dt) {
+        svmp::raise<svmp::ParseException>("Add_time_step_segment requires <Start_time> and <Time_step_size>.");
+      }
+
+      time_step_segments.push_back(segment);
 
     } else {
       auto value =

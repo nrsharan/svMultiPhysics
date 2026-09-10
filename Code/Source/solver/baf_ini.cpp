@@ -758,9 +758,13 @@ void fsi_ls_ini(ComMod& com_mod, const CmMod& cm_mod, bcType& lBc, const faceTyp
     } else {
       lsPtr = lsPtr + 1;
       lBc.lsPtr = lsPtr;
-      sVl = 0.0;
+      // The effective direction has nsd entries, or nsd+1 for a
+      // deformation-diffusion BC that also selects the concentration dof.
+      const int bcDof = lBc.eDrn.size();
+      Array<double> sVlDir(bcDof,nNo);
+      sVlDir = 0.0;
       bool eDrn = false;
-      for (int i = 0; i < nsd; i++) {
+      for (int i = 0; i < bcDof; i++) {
         if (lBc.eDrn(i) != 0) {
           eDrn = true;
           break;
@@ -768,14 +772,14 @@ void fsi_ls_ini(ComMod& com_mod, const CmMod& cm_mod, bcType& lBc, const faceTyp
       }
 
       if (eDrn) {
-        sVl = 1.0;
-        for (int i = 0; i < nsd; i++) {
-          if ((lBc.eDrn(i) != 0) && (sVl.size() != 0)) {
-            sVl.set_row(i, 0.0);
+        sVlDir = 1.0;
+        for (int i = 0; i < bcDof; i++) {
+          if ((lBc.eDrn(i) != 0) && (sVlDir.size() != 0)) {
+            sVlDir.set_row(i, 0.0);
           }
         }
       }
-      fsils_bc_create(com_mod.lhs, lsPtr, lFa.nNo, nsd, BcType::BC_TYPE_Dir, gNodes, sVl); 
+      fsils_bc_create(com_mod.lhs, lsPtr, lFa.nNo, bcDof, BcType::BC_TYPE_Dir, gNodes, sVlDir); 
     }
     
   } else if (btest(lBc.bType, iBC_Neu) || btest(lBc.bType, iBC_Coupled)) {

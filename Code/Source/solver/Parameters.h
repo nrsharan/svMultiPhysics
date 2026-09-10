@@ -8,6 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <array>
 #include <memory>
 #include <regex>
 #include <set>
@@ -1578,7 +1579,19 @@ protected:
 ///   <kEtaPlus> 1.0 </kEtaPlus>
 ///   <mEtaPlus> 1.0 </mEtaPlus>
 ///   ...
+///   <Time_segments parameter="ActiveBool" initialization="active_stretches">
+///     <Add_interval> <Start_time> 20 </Start_time> <End_time> 220 </End_time> </Add_interval>
+///   </Time_segments>
 /// </CCBActiveCMMGandR>
+/// \endcode
+///
+/// A <Time_segments parameter="NAME"> element makes the domain-data
+/// parameter NAME 1 inside and 0 outside its [Start_time, End_time)
+/// intervals. The optional 'initialization' attribute selects a one-time
+/// initialization when the parameter first switches on: "active_stretches"
+/// (default for ActiveBool), "growth_orientation" or "none" (default).
+///
+/// \code {.xml}
 /// \endcode
 class CCBActiveCMMGandRParameters : public ParameterLists
 {
@@ -1600,9 +1613,23 @@ public:
   /// Keys are exact Interface2/AceGen names, e.g. "kEtaPlus".
   const std::map<std::string, double>& get_parameters() const { return parameters_; }
 
+  /// One <Time_segments> element.
+  struct TimeSegments {
+    std::string parameter;
+    std::string initialization;
+    std::vector<std::array<double,2>> intervals;
+  };
+
+  /// Time segments given in the XML, in the order given.
+  const std::vector<TimeSegments>& get_time_segments() const { return time_segments_; }
+
 private:
   bool value_set = false;
   std::map<std::string, double> parameters_;
+  std::vector<TimeSegments> time_segments_;
+
+  /// Parse one <Time_segments> element.
+  void set_time_segments(const tinyxml2::XMLElement* xml_elem);
 };
 
 /// @brief The DomainParameters class stores parameters for the XML
@@ -1896,6 +1923,14 @@ class GeneralSimulationParameters : public ParameterLists
 
     Parameter<double> spectral_radius_of_infinite_time_step;
     Parameter<double> time_step_size;
+
+    /// Final time, used with time_step_segments.
+    Parameter<double> final_time;
+
+    /// Time step segments {start time, time step size} from the
+    /// <Add_time_step_segment> elements, in the order given. When given, they
+    /// replace Time_step_size and Number_of_time_steps (see Simulation.cpp).
+    std::vector<std::array<double,2>> time_step_segments;
 
     Parameter<std::string> include_xml;
     Parameter<int> increment_in_saving_restart_files;

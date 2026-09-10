@@ -4,6 +4,7 @@
 // The functions defined here replicate the Fortran functions defined in READFILES.f.
 
 #include "read_files.h"
+#include "time_segments.h"
 #include "ace_gen_cmm_smc_element.h"
 
 #include "Core/Exception.h"
@@ -201,12 +202,17 @@ void read_bc(Simulation* simulation, EquationParameters* eq_params, eqType& lEq,
   auto& com_mod = simulation->com_mod;
   lBc.h.resize(com_mod.nsd);
   
-  // Set effective direction data.
+  // Set effective direction data. For the deformation-diffusion equation,
+  // nsd+1 entries may be given; the last one selects the concentration dof.
   lBc.eDrn.resize(com_mod.nsd);
   auto effective_direction = bc_params->effective_direction();
 
+  if (lEq.phys == EquationType::phys_def_diffu && effective_direction.size() == com_mod.nsd + 1) {
+    lBc.eDrn.resize(com_mod.nsd + 1);
+  }
+
   if (effective_direction.size() != 0) {
-    if (effective_direction.size() != com_mod.nsd) {
+    if (effective_direction.size() != lBc.eDrn.size()) {
       auto effective_size = (std::stringstream() << "(" << effective_direction.size() << ")").str();
       auto space_dim = (std::stringstream() << "(" << com_mod.nsd << ")").str();
       svmp::raise<svmp::ParseException>("The size of the effective direction " + effective_size + 
@@ -693,8 +699,12 @@ void read_bc(Simulation* simulation, EquationParameters* eq_params, eqType& lEq,
   // gx = 1/full_area and the wall BC later zeros perimeter nodes, reducing the
   // effective flux to Q*(interior_area/full_area) instead of Q.
   //
+  // For the deformation-diffusion equation, whose Dirichlet values are
+  // displacements and concentrations rather than inflow profiles, the
+  // default is .false..
   ltmp = false; 
-  ltmp = utils::btest(lBc.bType, enum_int(BoundaryConditionType::bType_Dir)) || is_coupled_dir;
+  ltmp = (utils::btest(lBc.bType, enum_int(BoundaryConditionType::bType_Dir)) && lEq.phys != Equation_defdiff) ||
+         is_coupled_dir;
 
   if (bc_params->zero_out_perimeter.defined()) {
     ltmp = bc_params->zero_out_perimeter.value();
@@ -711,7 +721,7 @@ void read_bc(Simulation* simulation, EquationParameters* eq_params, eqType& lEq,
 
   // Impose BC on the state variable or its integral
   //
-  if (std::set<EquationType>{Equation_lElas,Equation_mesh,Equation_struct,Equation_shell}.count(lEq.phys) != 0) {
+  if (std::set<EquationType>{Equation_lElas,Equation_mesh,Equation_struct,Equation_shell,Equation_defdiff}.count(lEq.phys) != 0) {
     ltmp = true;
   } else {
     ltmp = false;
@@ -1447,6 +1457,56 @@ void read_ccb_active_cmm_gandr(dmnType &lDmn, DomainParameters *domain_params) {
       ace_gen_cmm_smc::get_element_info(lDmn.ccb_active_cmm_gandr_integration_code);
   lDmn.ccb_active_cmm_gandr_domain_data = ace_gen_cmm_smc::build_domain_data(
       lDmn.ccb_active_cmm_gandr_info, lDmn.ccb_active_cmm_gandr_params);
+
+  // Time segments that switch domain-data flags on and off
+  // (<Time_segments> in <CCBActiveCMMGandR>; see def_diffu::advance_time_step()).
+  const auto& names = lDmn.ccb_active_cmm_gandr_info.domainDataNames;
+  lDmn.ccb_active_cmm_gandr_flag_segments.clear();
+
+  for (const auto& segments_params : domain_params->ccb_active_cmm_gandr.get_time_segments()) {
+    dmnType::CcbFlagSegments flag;
+    flag.name = segments_params.parameter;
+
+    auto it = std::find(names.begin(), names.end(), flag.name);
+    if (it == names.end()) {
+      throw std::runtime_error("[read_ccb_active_cmm_gandr] Time_segments parameter '" + flag.name +
+          "' is not a domain-data parameter of the CCB element.");
+    }
+    flag.index = static_cast<int>(it - names.begin());
+
+    for (const auto& other : lDmn.ccb_active_cmm_gandr_flag_segments) {
+      if (other.name == flag.name) {
+        throw std::runtime_error("[read_ccb_active_cmm_gandr] Time_segments are given more than once for '" +
+            flag.name + "'.");
+      }
+    }
+
+    flag.initialization = segments_params.initialization;
+    if (flag.initialization.empty()) {
+      flag.initialization = (flag.name == "ActiveBool") ? "active_stretches" : "none";
+    }
+    if (flag.initialization != "none" && flag.initialization != "active_stretches" &&
+        flag.initialization != "growth_orientation") {
+      throw std::runtime_error("[read_ccb_active_cmm_gandr] Unknown Time_segments initialization '" +
+          flag.initialization + "' for '" + flag.name + "'; use none, active_stretches or growth_orientation.");
+    }
+
+    flag.intervals = segments_params.intervals;
+    std::sort(flag.intervals.begin(), flag.intervals.end());
+
+    // As in FEDDLib, the active response must start at ActiveStartTime.
+    if (flag.name == "ActiveBool") {
+      auto start = lDmn.ccb_active_cmm_gandr_params.find("ActiveStartTime");
+      if (start != lDmn.ccb_active_cmm_gandr_params.end() &&
+          !time_segments::approx_equal(flag.intervals.front()[0], start->second)) {
+        throw std::runtime_error("[read_ccb_active_cmm_gandr] The first ActiveBool time segment starts at " +
+            std::to_string(flag.intervals.front()[0]) + " but ActiveStartTime is " +
+            std::to_string(start->second) + "; they must be equal.");
+      }
+    }
+
+    lDmn.ccb_active_cmm_gandr_flag_segments.push_back(flag);
+  }
 }
 
 //-------------

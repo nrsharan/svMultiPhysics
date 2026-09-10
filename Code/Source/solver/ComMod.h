@@ -434,6 +434,21 @@ class dmnType
     // domain. Built once (not per-element) since it depends only on the
     // domain's parsed XML parameters, not on any element's nodal state.
     std::vector<double> ccb_active_cmm_gandr_domain_data;
+
+    // Domain-data flags switched on (1) inside and off (0) outside time
+    // intervals (<Time_segments> in <CCBActiveCMMGandR>); see
+    // def_diffu::advance_time_step().
+    struct CcbFlagSegments {
+      std::string name;
+      // Position in ccb_active_cmm_gandr_domain_data.
+      int index = -1;
+      // One-time initialization at the first switch-on: "none",
+      // "active_stretches" or "growth_orientation".
+      std::string initialization;
+      std::vector<std::array<double,2>> intervals;
+      bool initialized = false;
+    };
+    std::vector<CcbFlagSegments> ccb_active_cmm_gandr_flag_segments;
 };
 
 /// @brief Mesh adjacency (neighboring element for each element)
@@ -1770,6 +1785,15 @@ class ComMod {
 
     /// @brief Number of time steps
     int nTS = 0;
+
+    /// @brief Time step segments {start time, time step size}
+    /// (GeneralSimulationParameters Add_time_step_segment). When not empty,
+    /// the time step size is taken from these at every time step and the run
+    /// ends at finalTime.
+    std::vector<std::array<double,2>> dtSegments;
+
+    /// @brief Final time, used with dtSegments.
+    double finalTime = 0.0;
 
     /// @brief Number of initialization time steps
     int nITs = 0;

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "Simulation.h"
+#include "time_segments.h"
 #include "Integrator.h"
 
 #include "all_fun.h"
@@ -56,10 +57,57 @@ void Simulation::set_module_parameters()
   com_mod.nsd = general.number_of_spatial_dimensions.value();
   com_mod.nsymd = 3*(com_mod.nsd-1);
 
-  com_mod.nTS = general.number_of_time_steps.value();
   com_mod.nITs = general.number_of_initialization_time_steps.value();
   com_mod.startTS = general.starting_time_step.value();
-  com_mod.dt = general.time_step_size.value();
+
+  // Time stepping: a fixed time step size and number of time steps, or time
+  // step segments that run up to a final time.
+  const auto& segments = general.time_step_segments;
+
+  if (segments.empty()) {
+    if (!general.number_of_time_steps.defined() || !general.time_step_size.defined()) {
+      throw std::runtime_error("[Simulation] <GeneralSimulationParameters> requires <Number_of_time_steps> "
+          "and <Time_step_size>, or <Add_time_step_segment> elements with a <Final_time>.");
+    }
+    if (general.final_time.defined()) {
+      throw std::runtime_error("[Simulation] <Final_time> is only used with <Add_time_step_segment> elements.");
+    }
+    com_mod.nTS = general.number_of_time_steps.value();
+    com_mod.dt = general.time_step_size.value();
+
+  } else {
+    if (general.number_of_time_steps.defined() || general.time_step_size.defined()) {
+      throw std::runtime_error("[Simulation] With <Add_time_step_segment> elements, the time step size and "
+          "number of time steps follow from the segments and <Final_time>; remove <Number_of_time_steps> "
+          "and <Time_step_size>.");
+    }
+    if (!general.final_time.defined()) {
+      throw std::runtime_error("[Simulation] <Add_time_step_segment> elements require a <Final_time>.");
+    }
+    if (com_mod.nITs > 0) {
+      throw std::runtime_error("[Simulation] <Number_of_initialization_time_steps> cannot be combined with "
+          "<Add_time_step_segment> elements.");
+    }
+    if (!time_segments::approx_equal(segments[0][0], 0.0)) {
+      throw std::runtime_error("[Simulation] The first <Add_time_step_segment> must start at time 0.");
+    }
+    for (int i = 0; i < static_cast<int>(segments.size()); i++) {
+      if (segments[i][1] <= 0.0) {
+        throw std::runtime_error("[Simulation] The <Time_step_size> of every <Add_time_step_segment> must be positive.");
+      }
+      if (i > 0 && segments[i][0] <= segments[i-1][0]) {
+        throw std::runtime_error("[Simulation] The <Start_time> values of <Add_time_step_segment> elements must increase.");
+      }
+    }
+    if (general.final_time.value() <= segments.back()[0]) {
+      throw std::runtime_error("[Simulation] <Final_time> must be later than the start of the last <Add_time_step_segment>.");
+    }
+
+    com_mod.dtSegments = segments;
+    com_mod.finalTime = general.final_time.value();
+    com_mod.dt = time_segments::next_time_step(com_mod.dtSegments, com_mod.finalTime, 0.0);
+    com_mod.nTS = time_segments::number_of_time_steps(com_mod.dtSegments, com_mod.finalTime);
+  }
 
   com_mod.stopTrigName = general.searched_file_name_to_trigger_stop.value();
   com_mod.ichckIEN = general.check_ien_order.value();

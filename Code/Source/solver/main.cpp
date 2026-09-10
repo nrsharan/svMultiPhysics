@@ -15,6 +15,7 @@
 #include "contact.h"
 #include "Core/Exception.h"
 #include "def_diffu.h"
+#include "time_segments.h"
 #include "distribute.h"
 #include "eq_assem.h"
 #include "fs.h"
@@ -292,6 +293,11 @@ void iterate_solution(Simulation* simulation)
     // Incrementing time step, hence cTS will be associated with new
     // variables, i.e. An, Yn, and Dn
     //
+    // With time step segments, the time step size depends on the time.
+    if (!com_mod.dtSegments.empty()) {
+      dt = time_segments::next_time_step(com_mod.dtSegments, com_mod.finalTime, time);
+    }
+
     cTS = cTS + 1;
     time = time + dt;
     cEq = 0;
@@ -322,6 +328,10 @@ void iterate_solution(Simulation* simulation)
         break;
       }
     }
+
+    // Time segments of the deformation-diffusion equation's domain-data
+    // flags for the new time.
+    def_diffu::advance_time_step(com_mod, cm_mod, solutions);
 
     // Predictor step
     #ifdef debug_iterate_solution
