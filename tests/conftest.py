@@ -54,6 +54,16 @@ skip_if_no_trilinos = pytest.mark.skipif(
     reason="svMultiPhysics not built with Trilinos (SV_USE_TRILINOS=OFF in CMakeCache.txt)",
 )
 
+# The deformation-diffusion equation needs the Interface2/AceGen element
+# library, enabled with SV_USE_INTERFACE2 in the main build.
+HAS_INTERFACE2 = (
+    read_cmake_cache_variable(cmake_cache_path_for(cpp_exec), "SV_USE_INTERFACE2") or ""
+).upper() in ("ON", "1", "TRUE", "YES")
+skip_if_no_interface2 = pytest.mark.skipif(
+    not HAS_INTERFACE2,
+    reason="svMultiPhysics not built with Interface2 (SV_USE_INTERFACE2=OFF in CMakeCache.txt)",
+)
+
 
 def _detect_oversubscribe_flag():
     """Return the mpirun flag needed to allow more ranks than physical cores.

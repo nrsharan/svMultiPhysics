@@ -2,26 +2,24 @@
 <svMultiPhysicsFile version="0.1">
 
 <GeneralSimulationParameters>
-  <!-- Generalized-alpha time integration with inertia. The inner pressure is
-       ramped 0 to 20 over 50 s (load.dat) and then held for 5 s. The ramp is
-       slow compared with the wall's breathing mode (period about 2 s), so the
-       response stays close to quasi-static (within about 0.1%), and the
-       pressure increment per step (0.4% of the final value) is small enough
-       for the undamped Newton iteration with exact linear solves to converge
-       through the onset of collagen stiffening. Increments of 2% per step
-       make it diverge. -->
+  <!-- Short regression case (tests/test_def_diffu.py): the hollow_cylinder
+       wall under the start of its pressure ramp, with every domain-data
+       switch driven by time segments within ten steps: reorientation,
+       growth (growth orientation initialized when it switches on), and the
+       active response (active stretches initialized) together with a
+       concentration Dirichlet condition on both walls. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
-  <Number_of_time_steps> 275 </Number_of_time_steps>
+  <Number_of_time_steps> 10 </Number_of_time_steps>
   <Time_step_size> 0.2 </Time_step_size>
   <Spectral_radius_of_infinite_time_step> 0.50 </Spectral_radius_of_infinite_time_step>
 
   <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
   <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
-  <Increment_in_saving_VTK_files> 25 </Increment_in_saving_VTK_files>
+  <Increment_in_saving_VTK_files> 10 </Increment_in_saving_VTK_files>
   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
 
-  <Increment_in_saving_restart_files> 100 </Increment_in_saving_restart_files>
+  <Increment_in_saving_restart_files> 1000 </Increment_in_saving_restart_files>
 
   <Verbose> 1 </Verbose>
   <Warning> 1 </Warning>
@@ -30,34 +28,34 @@
 </GeneralSimulationParameters>
 
 <Add_mesh name="msh" >
-  <Mesh_file_path> mesh/mesh-complete.mesh.vtu </Mesh_file_path>
+  <Mesh_file_path> ../hollow_cylinder/mesh/mesh-complete.mesh.vtu </Mesh_file_path>
 
   <Add_face name="bottom">
-      <Face_file_path> mesh/mesh-surfaces/bottom.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/bottom.vtp </Face_file_path>
   </Add_face>
 
   <Add_face name="top">
-      <Face_file_path> mesh/mesh-surfaces/top.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/top.vtp </Face_file_path>
   </Add_face>
 
   <Add_face name="outer">
-      <Face_file_path> mesh/mesh-surfaces/outer.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/outer.vtp </Face_file_path>
   </Add_face>
 
   <Add_face name="inner">
-      <Face_file_path> mesh/mesh-surfaces/inner.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/inner.vtp </Face_file_path>
   </Add_face>
 
   <Add_face name="pin0">
-      <Face_file_path> mesh/mesh-surfaces/pin0.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/pin0.vtp </Face_file_path>
   </Add_face>
 
   <Add_face name="pin1">
-      <Face_file_path> mesh/mesh-surfaces/pin1.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/pin1.vtp </Face_file_path>
   </Add_face>
 
   <Add_face name="pin2">
-      <Face_file_path> mesh/mesh-surfaces/pin2.vtp </Face_file_path>
+      <Face_file_path> ../hollow_cylinder/mesh/mesh-surfaces/pin2.vtp </Face_file_path>
   </Add_face>
 
   <Mesh_scale_factor> 1.0 </Mesh_scale_factor>
@@ -130,9 +128,9 @@
      <Gamma1Min> 0.0779791039 </Gamma1Min>
      <Gamma3Min> 0.136778783 </Gamma3Min>
      <C50> 0.6673453236 </C50>
-     <D0> 6e-05 </D0>
+     <D0> 7e-3 </D0>
      <M> 0 </M>
-     <ActiveStartTime> 1000 </ActiveStartTime>
+     <ActiveStartTime> 1.6 </ActiveStartTime>
      <KMin> 0.15 </KMin>
      <ActiveBool> 0 </ActiveBool>
      <kFiberDistribution> 0.1333333333 </kFiberDistribution>
@@ -145,6 +143,18 @@
      <SMCGrowthBool> 0 </SMCGrowthBool>
      <PostProcessingType> 1 </PostProcessingType>
      <PostProcessingPower> 1 </PostProcessingPower>
+     <Time_segments parameter="ReorientationBool">
+       <Add_interval> <Start_time> 0.4 </Start_time> <End_time> 1.2 </End_time> </Add_interval>
+     </Time_segments>
+     <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
+       <Add_interval> <Start_time> 1.2 </Start_time> <End_time> 1.6 </End_time> </Add_interval>
+     </Time_segments>
+     <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
+       <Add_interval> <Start_time> 1.2 </Start_time> <End_time> 1.6 </End_time> </Add_interval>
+     </Time_segments>
+     <Time_segments parameter="ActiveBool">
+       <Add_interval> <Start_time> 1.6 </Start_time> <End_time> 10000.0 </End_time> </Add_interval>
+     </Time_segments>
    </CCBActiveCMMGandR>
 
    <Output type="Spatial" >
@@ -152,13 +162,6 @@
      <Concentration> true </Concentration>
    </Output>
 
-   <!-- Exact linear solves: trilinos-amesos2 uses a KLU2 direct
-        factorization as the GMRES preconditioner, so each Newton system is
-        solved in about one iteration. This is fine for a mesh this small but
-        is not a scalable choice. The system is badly conditioned (stiff
-        displacement block next to a diffusion block with D0 = 6e-5); FSILS
-        GMRES, trilinos-ml, trilinos-ilut and trilinos-blockjacobi-uc do not
-        reach the tolerance within the iteration budget. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
          <Preconditioner> trilinos-amesos2 </Preconditioner>
@@ -168,17 +171,6 @@
       <Krylov_space_dimension> 50 </Krylov_space_dimension>
    </LS>
 
-   <!-- Statically-determinate constraint set (these Dir BCs act only on the
-        displacement components selected by Effective_direction; the
-        concentration dof is prescribed with an nsd+1 Effective_direction,
-        see ../hollow_cylinder_time_segments):
-        - both end faces axially fixed (u_z=0) removes z-translation and
-          bending/tilt rotation about the x and y axes (3 modes);
-        - 3 points on the outer surface, evenly spaced in angle, each with
-          its own local circumferential (tangential) direction pinned to
-          zero, removes x/y translation and rotation about the axis (3
-          modes); see generate_mesh.py's pick_circumferential_pin_nodes()
-          for how these nodes/directions were computed. -->
    <Add_BC name="bottom" >
       <Type> Dir </Type>
       <Value> 0.0 </Value>
@@ -209,15 +201,28 @@
       <Effective_direction> (0, 1, 0) </Effective_direction>
    </Add_BC>
 
-   <!-- Internal pressure, applied as a follower (deformed-configuration)
-        load on the lumen wall: ramped linearly 0 to 20 over 50 s, then held
-        (load.dat with Ramp_function). -->
    <Add_BC name="inner" >
       <Type> Neu </Type>
       <Time_dependence> Unsteady </Time_dependence>
-      <Temporal_values_file_path> load.dat </Temporal_values_file_path>
+      <Temporal_values_file_path> ../hollow_cylinder/load.dat </Temporal_values_file_path>
       <Ramp_function> true </Ramp_function>
       <Follower_pressure_load> true </Follower_pressure_load>
+   </Add_BC>
+
+   <Add_BC name="inner" >
+      <Type> Dir </Type>
+      <Effective_direction> (0, 0, 0, 1) </Effective_direction>
+      <Time_dependence> Unsteady </Time_dependence>
+      <Temporal_values_file_path> conc.dat </Temporal_values_file_path>
+      <Ramp_function> true </Ramp_function>
+   </Add_BC>
+
+   <Add_BC name="outer" >
+      <Type> Dir </Type>
+      <Effective_direction> (0, 0, 0, 1) </Effective_direction>
+      <Time_dependence> Unsteady </Time_dependence>
+      <Temporal_values_file_path> conc.dat </Temporal_values_file_path>
+      <Ramp_function> true </Ramp_function>
    </Add_BC>
 
 </Add_equation>

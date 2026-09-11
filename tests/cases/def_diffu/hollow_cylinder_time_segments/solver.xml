@@ -5,8 +5,9 @@
   <!-- Time step segments (as in FEDDLib's "Timestepping Intervalls"), run
        up to <Final_time>. One segment is used here: with exact linear solves
        (trilinos-amesos2) svMultiPhysics's Newton iteration needs small
-       steps through the pressure ramp (see ../hollow_cylinder) and through
-       the reorientation phase (a jump to dt = 1 at t = 50 diverges). -->
+       steps through the pressure ramp (see ../hollow_cylinder); a jump to
+       dt = 1 at the start of reorientation (t = 50) also diverged in earlier
+       runs. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
   <Add_time_step_segment> <Start_time> 0.0 </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
