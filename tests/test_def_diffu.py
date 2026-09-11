@@ -21,3 +21,18 @@ def test_single_tet10():
 @skip_if_no_trilinos
 def test_hollow_cylinder_short(n_proc):
     run_with_reference(base_folder, "hollow_cylinder_short", fields, n_proc, 10)
+
+
+# The same case with the wall split into two domains that carry identical
+# parameters: must reproduce the single-domain reference.
+@skip_if_no_interface2
+@skip_if_no_trilinos
+def test_hollow_cylinder_short_two_domains(n_proc):
+    run_with_reference(
+        base_folder,
+        "hollow_cylinder_short_two_domains",
+        fields,
+        n_proc,
+        10,
+        name_ref="../hollow_cylinder_short/result_010.vtu",
+    )
