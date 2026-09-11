@@ -28,6 +28,9 @@ Code/ThirdParty/*/simvascular_*.h
 # svFSIplus output
 *-procs
 
+# Messages of the Interface2/AceGen elements (written to the run directory)
+ErrorLog.txt
+
 # Python files
 __pycache__
 
