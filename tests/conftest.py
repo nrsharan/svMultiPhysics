@@ -111,6 +111,33 @@ RTOL = {
     "Active_tension_fibers": 1.0e-10,
     "Active_tension_sheets": 1.0e-10,
     "Active_tension_normal": 1.0e-10,
+    # Post-processing quantities of the deformation-diffusion element, named
+    # as in the element (see tests/cases/def_diffu/*/solver.xml)
+    "S": 1.0e-9,
+    "MisesStress": 1.0e-9,
+    "SCirc": 1.0e-9,
+    "SAxial": 1.0e-9,
+    "SRadial": 1.0e-9,
+    "W": 1.0e-9,
+    "PhiElastin": 1.0e-9,
+    "PhiCollagen": 1.0e-9,
+    "PhiSMC": 1.0e-9,
+    "Stretch1": 1.0e-9,
+    "Stretch2": 1.0e-9,
+    "nC1": 1.0e-9,
+    "nC2": 1.0e-9,
+    "nD1": 1.0e-9,
+    "nD2": 1.0e-9,
+    "DetF": 1.0e-9,
+    "DetFe": 1.0e-9,
+    "DetFg": 1.0e-9,
+    "a1": 1.0e-9,
+    "a2": 1.0e-9,
+    "Ag1n": 1.0e-9,
+    "Ag2n": 1.0e-9,
+    "Ag3n": 1.0e-9,
+    "ActiveStretch1": 1.0e-9,
+    "ActiveStretch2": 1.0e-9,
 }
 
 # Relative tolerance for the TimeValue field data. The solver accumulates the

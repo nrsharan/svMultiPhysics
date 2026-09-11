@@ -51,7 +51,29 @@ struct ElementInfo {
   /// 'domainData' array passed to compute() must use. Cleaned of AceGen's
   /// internal Mathematica-symbol markup (see the .cpp for details).
   std::vector<std::string> domainDataNames;
+
+  /// The element's post-processing quantity names, in the row order of
+  /// post_process()'s result. The first ("Volume") is the nodal weight the
+  /// other quantities are accumulated with.
+  std::vector<std::string> postDataNames;
 };
+
+/// One output field made of post-processing quantities: 'components'
+/// consecutive rows of post_process()'s result, starting at 'firstRow'.
+struct PostField {
+  std::string name;
+  int firstRow = 0;
+  int components = 1;
+};
+
+/// Group the element's post-processing quantities into output fields by
+/// name: nine consecutive names <P>xx, <P>xy, <P>xz, <P>yx, ..., <P>zz form
+/// the 3x3 tensor <P> (row-major, e.g. the Cauchy stress S), three
+/// consecutive names <P>1, <P>2, <P>3 the vector <P> (e.g. the fiber
+/// direction a1 from a11, a12, a13), and every other name is a scalar field.
+/// The nodal weight "Volume" is not a field. Throws std::runtime_error if
+/// the first name is not "Volume".
+std::vector<PostField> post_fields(const ElementInfo& info);
 
 /// Query element metadata for the given integration code (18 -> 4 Gauss
 /// points, 19 -> 5 Gauss points). Throws std::runtime_error if
@@ -192,6 +214,15 @@ std::vector<double> history_with_active_stretches(const ElementInput& input);
 /// the element state in 'input', as FEDDLib does when growth first switches
 /// on.
 std::vector<double> history_with_growth_orientation(const ElementInput& input);
+
+/// Run the element's post-processing task (Interface2's postProcess()) for
+/// the element state in 'input'. Returns (ElementInfo::postDataNames.size(),
+/// 10) in svMultiPhysics's local node order: row 0 is node a's weight
+/// ("Volume") and row k its weighted contribution to quantity k, as the
+/// AceGen task accumulates them over the Gauss points. The nodal value of
+/// quantity k is the sum of row k over the elements sharing the node divided
+/// by the sum of row 0 (see def_diffu::nodal_post_data()).
+Array<double> post_process(const ElementInput& input);
 
 } // namespace ace_gen_cmm_smc
 

@@ -159,8 +159,63 @@ ElementInfo get_element_info(int integrationCode) {
     info.domainDataNames[i] = clean_domain_data_name(std::string(rawNames[i]));
   }
 
+  // The post-processing names are plain identifiers ("Volume", "Sxx", ...).
+  char** rawPostNames = naming_elem.getPostDataNames();
+  info.postDataNames.assign(rawPostNames, rawPostNames + naming_elem.getNumberOfPostData());
+
   return info;
 #endif
+}
+
+std::vector<PostField> post_fields(const ElementInfo& info) {
+  const auto& names = info.postDataNames;
+
+  if (names.empty() || names[0] != "Volume") {
+    throw std::runtime_error(
+        "ace_gen_cmm_smc::post_fields: the element's first post-processing "
+        "quantity is not the nodal weight 'Volume'; the nodal averaging of "
+        "its post-processing output needs to be updated.");
+  }
+
+  static const char* tensorSuffixes[9] = {"xx", "xy", "xz", "yx", "yy", "yz", "zx", "zy", "zz"};
+
+  // Prefix <P> of a name ending in 'suffix', or "" if it does not end so.
+  auto prefix = [](const std::string& name, const std::string& suffix) -> std::string {
+    if (name.size() <= suffix.size() || name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0) {
+      return "";
+    }
+    return name.substr(0, name.size() - suffix.size());
+  };
+
+  std::vector<PostField> fields;
+  std::size_t i = 1;
+
+  while (i < names.size()) {
+    std::string p = prefix(names[i], tensorSuffixes[0]);
+    if (!p.empty() && i + 9 <= names.size()) {
+      int c = 1;
+      while (c < 9 && names[i + c] == p + tensorSuffixes[c]) {
+        c++;
+      }
+      if (c == 9) {
+        fields.push_back({p, static_cast<int>(i), 9});
+        i += 9;
+        continue;
+      }
+    }
+
+    p = prefix(names[i], "1");
+    if (!p.empty() && i + 3 <= names.size() && names[i + 1] == p + "2" && names[i + 2] == p + "3") {
+      fields.push_back({p, static_cast<int>(i), 3});
+      i += 3;
+      continue;
+    }
+
+    fields.push_back({names[i], static_cast<int>(i), 1});
+    i++;
+  }
+
+  return fields;
 }
 
 std::vector<double> build_domain_data(const ElementInfo& info,
@@ -420,6 +475,32 @@ std::vector<double> history_with_growth_orientation(const ElementInput& input) {
   }
 
   return history;
+#endif
+}
+
+Array<double> post_process(const ElementInput& input) {
+#ifndef SV_HAVE_INTERFACE2
+  throw std::runtime_error("The 'deformation-diffusion' equation requires svMultiPhysics to be built with Interface2 support.");
+#else
+  RawElementInput raw = raw_element_input(input);
+  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
+      elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
+           raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
+           input.timeIncrement, input.time, input.integrationCode, input.elementID);
+
+  const int numberOfPostData = elem.getNumberOfPostData();
+  double** post = elem.postProcess(raw.displacements, raw.concentrations, raw.history.data(),
+                                   raw.rates, raw.accelerations); // 10 x numberOfPostData
+
+  Array<double> out(numberOfPostData, 10);
+  for (int a = 0; a < 10; a++) {
+    int va = kAceGenNodeToVtkNode[a];
+    for (int k = 0; k < numberOfPostData; k++) {
+      out(k, va) = post[a][k];
+    }
+  }
+
+  return out;
 #endif
 }
 

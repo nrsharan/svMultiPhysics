@@ -356,4 +356,85 @@ void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionState
   }
 }
 
+std::vector<ace_gen_cmm_smc::PostField> post_fields(const eqType& eq)
+{
+  for (int iDmn = 0; iDmn < eq.nDmn; iDmn++) {
+    if (eq.dmn[iDmn].phys == consts::EquationType::phys_def_diffu) {
+      return ace_gen_cmm_smc::post_fields(eq.dmn[iDmn].ccb_active_cmm_gandr_info);
+    }
+  }
+
+  return {};
+}
+
+void nodal_post_data(const ComMod& com_mod, const mshType& lM, const SolutionStates& solutions, const int iEq,
+                     Array<double>& values)
+{
+  const auto& D = solutions.current.get_displacement();
+  const auto& Y = solutions.current.get_velocity();
+  const auto& A = solutions.current.get_acceleration();
+  const auto& eq = com_mod.eq[iEq];
+
+  int numberOfPostData = 0;
+  for (int iDmn = 0; iDmn < eq.nDmn; iDmn++) {
+    if (eq.dmn[iDmn].phys == consts::EquationType::phys_def_diffu) {
+      numberOfPostData = eq.dmn[iDmn].ccb_active_cmm_gandr_info.postDataNames.size();
+      break;
+    }
+  }
+
+  values.resize(numberOfPostData, lM.nNo);
+  values = 0.0;
+
+  if (numberOfPostData == 0) {
+    return;
+  }
+
+  // The history of the state being written: the output of a time step is
+  // written before main.cpp commits its history (commit_history()), so the
+  // converged history of the step is still the trial history. The
+  // post-processing task reads it as the current state without evolving it.
+  // Before the first time step no element state exists yet.
+  auto history = com_mod.ccbActiveCmmGandrHistoryUpdated.find(lM.name);
+  Array<double> sums(numberOfPostData, com_mod.tnNo);
+
+  if (history != com_mod.ccbActiveCmmGandrHistoryUpdated.end()) {
+    for (int e = 0; e < lM.nEl; e++) {
+      const auto& dmn = eq.dmn[all_fun::domain(com_mod, lM, iEq, e)];
+
+      if (dmn.phys != consts::EquationType::phys_def_diffu) {
+        continue;
+      }
+
+      const int historyLengthPerElement = dmn.ccb_active_cmm_gandr_info.historyLengthPerElement;
+      auto input = element_input(com_mod, eq, dmn, lM, e, D, Y, A, history->second, historyLengthPerElement);
+      auto post = ace_gen_cmm_smc::post_process(input);
+
+      for (int a = 0; a < lM.eNoN; a++) {
+        int Ac = lM.IEN(a,e);
+        for (int k = 0; k < numberOfPostData; k++) {
+          sums(k,Ac) += post(k,a);
+        }
+      }
+    }
+  }
+
+  // Add the contributions of the other processors at shared nodes.
+  all_fun::commu(com_mod, sums);
+
+  for (int a = 0; a < lM.nNo; a++) {
+    int Ac = lM.gN(a);
+    double weight = sums(0,Ac);
+    values(0,a) = weight;
+
+    if (weight == 0.0) {
+      continue;
+    }
+
+    for (int k = 1; k < numberOfPostData; k++) {
+      values(k,a) = sums(k,Ac) / weight;
+    }
+  }
+}
+
 };

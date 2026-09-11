@@ -349,6 +349,7 @@ enum class OutputNameType {
   outGrp_activeTensionFibers = 529,
   outGrp_activeTensionSheets = 530,
   outGrp_activeTensionNormal = 531,
+  outGrp_elementPost = 532,
 
   out_velocity = 599,
   out_pressure = 598,

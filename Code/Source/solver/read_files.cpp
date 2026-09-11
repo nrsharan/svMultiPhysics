@@ -6,6 +6,7 @@
 #include "read_files.h"
 #include "time_segments.h"
 #include "ace_gen_cmm_smc_element.h"
+#include "def_diffu.h"
 
 #include "Core/Exception.h"
 #include "FE/Common/FEException.h"
@@ -2449,6 +2450,32 @@ void read_outputs(Simulation* simulation, EquationParameters* eq_params, eqType&
     }
   }
 
+  // The deformation-diffusion element's post-processing quantities, one
+  // output per field (scalar, vector or 3x3 tensor; see
+  // def_diffu::post_fields()), named as in the element. They are set like the
+  // other outputs below; <Element_post_data> true </Element_post_data> in
+  // <Output type="Spatial"> writes all of them.
+  //
+  if (lEq.phys == consts::EquationType::phys_def_diffu) {
+    for (const auto& field : def_diffu::post_fields(lEq)) {
+      for (const auto& output : lEq.output) {
+        if (output.name == field.name) {
+          throw std::runtime_error("The deformation-diffusion element's post-processing quantity '" + field.name +
+                                   "' has the name of another output.");
+        }
+      }
+
+      outputType output;
+      output.grp = OutputNameType::outGrp_elementPost;
+      output.o = field.firstRow;
+      output.l = field.components;
+      output.name = field.name;
+      lEq.output.push_back(output);
+    }
+
+    lEq.nOutput = lEq.output.size();
+  }
+
   // First reading the outputs for VTK files and then for boundaries and last for the volume
   //
   int nOut = eq_params->outputs.size();
@@ -2475,6 +2502,22 @@ void read_outputs(Simulation* simulation, EquationParameters* eq_params, eqType&
         if (nsd != maxNSD) {
           lEq.output[i].options.set_option(output_type, false);
         }
+      }
+    }
+
+    // Element post-processing quantities are nodal fields for the VTK files
+    // only.
+    for (auto& output : lEq.output) {
+      if (output.grp != OutputNameType::outGrp_elementPost) {
+        continue;
+      }
+      if (output_type == OutputType::spatial && output_params->get_output_value("Element_post_data")) {
+        output.options.set_option(output_type, true);
+      }
+      if (output_type != OutputType::spatial && output_params->get_output_value(output.name)) {
+        throw std::runtime_error("The deformation-diffusion element's post-processing quantity '" + output.name +
+                                 "' can only be written to the VTK files (<Output type=\"Spatial\">), not to <Output type=\"" +
+                                 output_type_str + "\">.");
       }
     }
   }

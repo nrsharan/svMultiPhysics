@@ -32,6 +32,23 @@ void commit_history(ComMod& com_mod);
 /// first switch-on from the converged state of the previous time step.
 void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionStates& solutions);
 
+/// @brief Output fields of the element post-processing quantities of
+/// equation eq (ace_gen_cmm_smc::post_fields() of its first
+/// deformation-diffusion domain; all its domains use the same element), or
+/// none if it has no such domain.
+std::vector<ace_gen_cmm_smc::PostField> post_fields(const eqType& eq);
+
+/// @brief Nodal values of the element post-processing quantities of equation
+/// iEq on mesh lM at the current state, for the VTK output: 'values' is
+/// resized to (number of quantities, lM.nNo). The elements' weighted
+/// contributions (ace_gen_cmm_smc::post_process()) are summed at every node
+/// over the elements sharing it, on all processors, and divided by the summed
+/// weights, which are kept in row 0. Nodes without weight -- those of other
+/// equations' elements, and all nodes before the first time step, when there
+/// is no element state yet -- get 0. Must be called on every processor.
+void nodal_post_data(const ComMod& com_mod, const mshType& lM, const SolutionStates& solutions, const int iEq,
+                     Array<double>& values);
+
 };
 
 #endif

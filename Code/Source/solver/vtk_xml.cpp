@@ -9,6 +9,7 @@
 
 #include "all_fun.h"
 #include "consts.h"
+#include "def_diffu.h"
 #include "post.h"
 
 #include <iomanip>
@@ -1063,6 +1064,11 @@ void write_vtus(Simulation* simulation, const SolutionStates& solutions, const b
     nOute = 0;
     std::fill(outNamesE.begin(), outNamesE.end(), "");
 
+    // Nodal element post-processing quantities of equation elementPostEq on
+    // this mesh, computed for its first such output (outGrp_elementPost).
+    Array<double> elementPost;
+    int elementPostEq = -1;
+
     for (int iEq = 0; iEq < nEq; iEq++) {
       auto& eq = eqs[iEq];
 
@@ -1353,6 +1359,20 @@ void write_vtus(Simulation* simulation, const SolutionStates& solutions, const b
               d[iM].x(is, a) = simulation->cep_mod.cem.Ya_n[Ac];
             }
           } break;
+
+          // Rows o, ..., o+l-1 of the nodal element post-processing
+          // quantities (def_diffu::nodal_post_data()).
+          case OutputNameType::outGrp_elementPost:
+            if (elementPostEq != iEq) {
+              def_diffu::nodal_post_data(com_mod, msh, solutions, iEq, elementPost);
+              elementPostEq = iEq;
+            }
+            for (int a = 0; a < msh.nNo; a++) {
+              for (int i = 0; i < l; i++) {
+                d[iM].x(i+is,a) = elementPost(eq.output[iOut].o + i, a);
+              }
+            }
+          break;
 
           default:
             throw std::runtime_error("Undefined output");

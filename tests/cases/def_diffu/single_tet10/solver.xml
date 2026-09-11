@@ -113,6 +113,11 @@
    <Output type="Spatial" >
      <Displacement> true </Displacement>
      <Concentration> true </Concentration>
+     <!-- All post-processing quantities of the Interface2/AceGen element
+          (its Post-processing task, averaged to the nodes), each by its
+          element name: scalars, vectors (e.g. a1 from a11, a12, a13) and
+          3x3 tensors (S from Sxx, ..., Szz). -->
+     <Element_post_data> true </Element_post_data>
    </Output>
 
    <LS type="GMRES" >
