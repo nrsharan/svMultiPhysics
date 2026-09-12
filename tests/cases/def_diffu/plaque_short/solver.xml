@@ -1,0 +1,717 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<svMultiPhysicsFile version="0.1">
+
+<GeneralSimulationParameters>
+  <!-- Smoke test of the FEDDLib plaque mesh (meshes/SPP2311/
+       plaque_short_6_k.mesh, converted with ../tools/feddlib_mesh_to_svmp.py):
+       seven tissue regions as domains 15-21 (DOMAIN_ID = FEDDLib volume
+       flag). PLACEHOLDER PARAMETERS: every region uses the hollow_cylinder
+       parameter set; region-specific CMM parameters are still to be
+       defined. Only checks that the mesh, domains and boundary conditions
+       load and a few steps run.
+       NOT YET VERIFIED: the trilinos-amesos2 preconditioner (a direct
+       factorization of the coupled system) needs more memory than a 16 GB
+       machine has; with trilinos-riluk1, trilinos-ilut or
+       trilinos-blockjacobi the case runs, but no linear solve converges and
+       Newton does not converge within 25 iterations. -->
+  <Continue_previous_simulation> 0 </Continue_previous_simulation>
+  <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
+  <Number_of_time_steps> 3 </Number_of_time_steps>
+  <Time_step_size> 0.2 </Time_step_size>
+  <Spectral_radius_of_infinite_time_step> 0.50 </Spectral_radius_of_infinite_time_step>
+
+  <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
+  <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
+  <Increment_in_saving_VTK_files> 1 </Increment_in_saving_VTK_files>
+  <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
+
+  <Increment_in_saving_restart_files> 1000 </Increment_in_saving_restart_files>
+
+  <Verbose> 1 </Verbose>
+  <Warning> 1 </Warning>
+  <Debug> 0 </Debug>
+
+</GeneralSimulationParameters>
+
+<Add_mesh name="msh" >
+  <Mesh_file_path> mesh/mesh-complete.mesh.vtu </Mesh_file_path>
+
+  <Add_face name="bottom">
+      <Face_file_path> mesh/mesh-surfaces/bottom.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="top">
+      <Face_file_path> mesh/mesh-surfaces/top.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="inner">
+      <Face_file_path> mesh/mesh-surfaces/inner.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="outer">
+      <Face_file_path> mesh/mesh-surfaces/outer.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="pin_xz">
+      <Face_file_path> mesh/mesh-surfaces/pin_xz.vtp </Face_file_path>
+  </Add_face>
+
+  <Add_face name="pin_yz">
+      <Face_file_path> mesh/mesh-surfaces/pin_yz.vtp </Face_file_path>
+  </Add_face>
+
+  <Domain_file_path> mesh/mesh-complete.mesh.vtu </Domain_file_path>
+  <Mesh_scale_factor> 1.0 </Mesh_scale_factor>
+</Add_mesh>
+
+<Add_equation type="deformation-diffusion" >
+
+   <Coupled> true </Coupled>
+   <Min_iterations> 1 </Min_iterations>
+   <Max_iterations> 25 </Max_iterations>
+   <Tolerance> 1e-5 </Tolerance>
+
+   <!-- Adventitia (placeholder parameters) -->
+   <Domain id="15" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+   <!-- Media (placeholder parameters) -->
+   <Domain id="16" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+   <!-- DegenMedia (placeholder parameters) -->
+   <Domain id="17" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+   <!-- Lipid (placeholder parameters) -->
+   <Domain id="18" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+   <!-- Calc1 (placeholder parameters) -->
+   <Domain id="19" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+   <!-- Calc2 (placeholder parameters) -->
+   <Domain id="20" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+   <!-- FibCap (placeholder parameters) -->
+   <Domain id="21" >
+      <Integration_code> 18 </Integration_code>
+      <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
+
+      <CCBActiveCMMGandR>
+        <fA> 30 </fA>
+        <kEtaPlus> 0.6 </kEtaPlus>
+        <mEtaPlus> 5 </mEtaPlus>
+        <Alpha1> 11.52507 </Alpha1>
+        <Alpha2> 151.73775 </Alpha2>
+        <Alpha3> 2.75662 </Alpha3>
+        <Alpha4> 1.27631 </Alpha4>
+        <Alpha5> 3.08798 </Alpha5>
+        <GroundGrowthBool> 0 </GroundGrowthBool>
+        <ReorientationBool> 0 </ReorientationBool>
+        <CollRemodelingBool> 0 </CollRemodelingBool>
+        <Density> 1 </Density>
+        <ElastinFrac> 0.370370370 </ElastinFrac>
+        <CollagenFrac> 0.370370370 </CollagenFrac>
+        <TElastin> 1000 </TElastin>
+        <TCollagen> 1000 </TCollagen>
+        <KElastin> 1 </KElastin>
+        <KCollagen> 1 </KCollagen>
+        <IHomo> 50 </IHomo>
+        <QMax> 1 </QMax>
+        <QMin> 0.2 </QMin>
+        <AlphaMech> 1 </AlphaMech>
+        <PCirc> 1 </PCirc>
+        <PAx> 1 </PAx>
+        <PRad> 1 </PRad>
+        <GNInit> 1.008 </GNInit>
+        <TC> 1000 </TC>
+        <LambdaC50> 1.2 </LambdaC50>
+        <Gamma3Max> 0.9 </Gamma3Max>
+        <LambdaBarCDotMax> 0.0443 </LambdaBarCDotMax>
+        <LambdaBarCDotMin> -0.0443 </LambdaBarCDotMin>
+        <Gamma2> 50 </Gamma2>
+        <Gamma1Max> 0.5131 </Gamma1Max>
+        <Eta> 0.1624 </Eta>
+        <Ca50> 0.4 </Ca50>
+        <K3> 0.134 </K3>
+        <K4> 0.00166 </K4>
+        <K7> 6.6e-05 </K7>
+        <Kappa> 148.262 </Kappa>
+        <Beta1> 0.001006 </Beta1>
+        <MuA> 11.857 </MuA>
+        <Beta2> 26.68 </Beta2>
+        <Gamma6> 1.5 </Gamma6>
+        <LambdaP50> 1 </LambdaP50>
+        <KDotMin> -0.0010694 </KDotMin>
+        <Zeta1> 100 </Zeta1>
+        <KDotMax> 0.0009735 </KDotMax>
+        <Gamma4> 200 </Gamma4>
+        <LambdaBarDotPMin> -0.0002323 </LambdaBarDotPMin>
+        <LambdaBarDotPMax> 6.99e-05 </LambdaBarDotPMax>
+        <Gamma5> 50 </Gamma5>
+        <Zeta2> 1000 </Zeta2>
+        <DeltaLambdaBarPMin> -1e-05 </DeltaLambdaBarPMin>
+        <Gamma1Min> 0.0779791039 </Gamma1Min>
+        <Gamma3Min> 0.136778783 </Gamma3Min>
+        <C50> 0.6673453236 </C50>
+        <D0> 7e-3 </D0>
+        <M> 0 </M>
+        <ActiveStartTime> 1000 </ActiveStartTime>
+        <KMin> 0.15 </KMin>
+        <ActiveBool> 0 </ActiveBool>
+        <kFiberDistribution> 0.1333333333 </kFiberDistribution>
+        <P> 2.958083521 </P>
+        <TSMC> 1000 </TSMC>
+        <SMCFrac> 0.259259259 </SMCFrac>
+        <NCOpt> 0.6 </NCOpt>
+        <AlphaBio> 1 </AlphaBio>
+        <KSMC> 1 </KSMC>
+        <SMCGrowthBool> 0 </SMCGrowthBool>
+        <PostProcessingType> 1 </PostProcessingType>
+        <PostProcessingPower> 1 </PostProcessingPower>
+      </CCBActiveCMMGandR>
+   </Domain>
+
+
+   <Output type="Spatial" >
+     <Displacement> true </Displacement>
+     <Concentration> true </Concentration>
+
+     <!-- Post-processing quantities of the Interface2/AceGen element (its
+          Post-processing task, averaged to the nodes), by element name.
+          Those the FEDDLib artery examples export (SCirc, SAxial and SRadial
+          are the principal Cauchy stresses, largest to smallest): -->
+     <MisesStress> true </MisesStress>
+     <SCirc> true </SCirc>
+     <SAxial> true </SAxial>
+     <SRadial> true </SRadial>
+     <W> true </W>
+     <PhiElastin> true </PhiElastin>
+     <PhiCollagen> true </PhiCollagen>
+     <PhiSMC> true </PhiSMC>
+     <Stretch1> true </Stretch1>
+     <Stretch2> true </Stretch2>
+     <nC1> true </nC1>
+     <nC2> true </nC2>
+     <nD1> true </nD1>
+     <nD2> true </nD2>
+     <DetF> true </DetF>
+     <DetFe> true </DetFe>
+     <DetFg> true </DetFg>
+     <!-- The Cauchy stress tensor, the fiber directions, the growth
+          orientation vectors and the active stretches: -->
+     <S> true </S>
+     <a1> true </a1>
+     <a2> true </a2>
+     <Ag1n> true </Ag1n>
+     <Ag2n> true </Ag2n>
+     <Ag3n> true </Ag3n>
+     <ActiveStretch1> true </ActiveStretch1>
+     <ActiveStretch2> true </ActiveStretch2>
+   </Output>
+
+   <LS type="GMRES" >
+      <Linear_algebra type="trilinos" >
+         <Preconditioner> trilinos-amesos2 </Preconditioner>
+      </Linear_algebra>
+      <Tolerance> 1e-6 </Tolerance>
+      <Max_iterations> 100 </Max_iterations>
+      <Krylov_space_dimension> 50 </Krylov_space_dimension>
+   </LS>
+
+   <Add_BC name="bottom" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 0, 1) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="top" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 0, 1) </Effective_direction>
+   </Add_BC>
+
+   <!-- FEDDLib vertex flags 13 (held in x and z) and 14 (held in y and z),
+        applied here to the bottom-face triangle containing each vertex. -->
+   <Add_BC name="pin_xz" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (1, 0, 1) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="pin_yz" >
+      <Type> Dir </Type>
+      <Value> 0.0 </Value>
+      <Effective_direction> (0, 1, 1) </Effective_direction>
+   </Add_BC>
+
+   <Add_BC name="inner" >
+      <Type> Neu </Type>
+      <Time_dependence> Unsteady </Time_dependence>
+      <Temporal_values_file_path> ../hollow_cylinder/load.dat </Temporal_values_file_path>
+      <Ramp_function> true </Ramp_function>
+      <Follower_pressure_load> true </Follower_pressure_load>
+   </Add_BC>
+
+</Add_equation>
+
+</svMultiPhysicsFile>
