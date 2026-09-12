@@ -9,11 +9,12 @@
        parameter set; region-specific CMM parameters are still to be
        defined. Only checks that the mesh, domains and boundary conditions
        load and a few steps run.
-       NOT YET VERIFIED: the trilinos-amesos2 preconditioner (a direct
-       factorization of the coupled system) needs more memory than a 16 GB
-       machine has; with trilinos-riluk1, trilinos-ilut or
-       trilinos-blockjacobi the case runs, but no linear solve converges and
-       Newton does not converge within 25 iterations. -->
+       Runs with trilinos-amesos2 (a direct factorization as preconditioner)
+       on one process: each of the 3 steps converges in 3 Newton iterations
+       (residual down 5-6 orders), about 74 min and 6.7 GB peak memory. With
+       4 processes the factorization needs more memory than a 16 GB machine
+       has. With trilinos-riluk1, trilinos-ilut or trilinos-blockjacobi no
+       linear solve converges. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
   <Number_of_time_steps> 3 </Number_of_time_steps>
