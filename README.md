@@ -237,6 +237,9 @@ The `trilinos-frosch` preconditioner (two-level overlapping Schwarz) additionall
 rather than its parent ShyLU_DD, which requires Epetra). svMultiPhysics detects it when it is configured and compiles the
 preconditioner only if it is present.
 
+The scripts used to build VTK, Trilinos and svMultiPhysics on macOS (Apple silicon) are in
+[BuildScripts/macOS-AppleSilicon](BuildScripts/macOS-AppleSilicon/README.md).
+
 ## Building PETSc
 
 PETSc libraries can be [installed](https://petsc.org/release/install/) using package managers.
