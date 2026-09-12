@@ -49,6 +49,47 @@ carry the wall's concentration condition.
 - Newton convergence test: FEDDLib (NOX) stops on the update norm
   (1e-7), svMultiPhysics on the residual (1e-5, relative).
 - Linear solver: FEDDLib preconditions GMRES from the right, svMultiPhysics
-  from the left; FEDDLib's FROSch uses a two-block coarse space
-  (displacement with rotations, concentration), svMultiPhysics's
-  `trilinos-frosch` a single block with translations only.
+  from the left (both stop on the true residual); FEDDLib's FROSch uses a
+  two-block coarse space (displacement with rotations, concentration), like
+  svMultiPhysics's `trilinos-frosch-block`, while `trilinos-frosch` is a single
+  block with translations only. FEDDLib keeps the coarse basis of the first
+  matrix for the whole run ("Reuse: Coarse Basis") and drops basis entries
+  below 1e-5 ("Phi: Dropping Threshold"); svMultiPhysics recomputes the basis
+  for every matrix and drops below 1e-8 (FROSch's default).
+
+## Results (Elysium, cpu nodes)
+
+All runs converge in all 50 steps, with 3 Newton iterations per step in
+svMultiPhysics and 3.8 in FEDDLib. GMRES iterations are the mean per linear
+solve. Wall times of the same run vary by up to about 10% between nodes.
+
+| Run | 16 ranks: wall, GMRES its | 32 ranks: wall, GMRES its |
+|---|---|---|
+| svMultiPhysics `trilinos-frosch`, FROSch set up for every solve | 3972 s, 25.1 | 1576 s, 33.0 |
+| svMultiPhysics `trilinos-frosch`, setup kept (current) | 4063 s, 25.1 | 1522 s, 33.0 |
+| svMultiPhysics `trilinos-frosch-block`, set up for every solve | 4517 s, 24.1 | 1685 s, 30.3 |
+| svMultiPhysics `trilinos-frosch-block`, setup kept (current) | 4123 s, 24.1 | 1368 s, 30.3 |
+| svMultiPhysics `trilinos-frosch`, `<Diagonal_scaling> false` | 3739 s, 24.8 | 1611 s, 32.1 |
+| svMultiPhysics `trilinos-frosch`, coarse basis kept (`frosch_recycle_coarse_basis.xml`) | 3588 s, 27.1 | 1438 s, 35.8 |
+| FEDDLib `artery_dan_cmm` (coarse basis kept) | 3233 s, 203.7 | 1735 s, 266.0 |
+| FEDDLib, coarse basis recomputed | 3464 s, 156.5 | 1545 s, 192.2 |
+
+Keeping the FROSch setup gives the same iterations as setting it up anew.
+Where the time goes (timer summary printed at the end of the run), 32 ranks:
+
+- svMultiPhysics `trilinos-frosch` (1603 s): FROSch `compute` 1457 s for 150
+  matrices (overlapping subdomains 776 s, coarse space 681 s), GMRES 104 s,
+  graph and matrix creation 9 s, assembly and the rest about 30 s; FROSch
+  `initialize` 0.4 s, once.
+- FEDDLib, coarse basis recomputed (1545 s): FROSch `compute` 724 s for 191
+  matrices, GMRES 577 s.
+
+So the number of GMRES iterations hardly matters for svMultiPhysics; the
+FROSch `compute` for every Newton iteration does. The overlapping subdomains
+have about the same size in both codes (32 ranks, after one layer of overlap:
+12406 degrees of freedom on average, 15824 at most, in svMultiPhysics; 12151
+and 15036 in FEDDLib), yet a FROSch `compute` takes 9.7 s in svMultiPhysics and
+3.8 s in FEDDLib, and svMultiPhysics needs 6 to 8 times fewer GMRES
+iterations. Neither the diagonal scaling, the stopping test, the kept coarse
+basis nor the Trilinos build (both optimized) explains this; the matrices of
+the two codes differ (see above), which is still to be compared directly.
