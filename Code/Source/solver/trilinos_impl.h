@@ -139,6 +139,7 @@ using MueLu_Preconditioner = Tpetra_Operator;
 #define TRILINOS_BLOCKJACOBI_UC_PRECONDITIONER 712
 #define TRILINOS_AMESOS2_PRECONDITIONER 713
 #define TRILINOS_FROSCH_PRECONDITIONER 714
+#define TRILINOS_FROSCH_BLOCK_PRECONDITIONER 715
 
 /// @brief Initialize all Epetra types we need separate from Fortran
 struct Trilinos
@@ -374,7 +375,7 @@ void setAmesos2Preconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
 
 #ifdef WITH_FROSCH
 void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
-  Teuchos::RCP<Tpetra_Operator>& froschPrec);
+  Teuchos::RCP<Tpetra_Operator>& froschPrec, bool block);
 #endif
 
 void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_);

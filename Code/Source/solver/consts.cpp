@@ -263,7 +263,8 @@ const std::set<PreconditionerType> trilinos_preconditioners = {
   PreconditionerType::PREC_TRILINOS_ML,
   PreconditionerType::PREC_TRILINOS_BLOCKJACOBI_UC,
   PreconditionerType::PREC_TRILINOS_AMESOS2,
-  PreconditionerType::PREC_TRILINOS_FROSCH
+  PreconditionerType::PREC_TRILINOS_FROSCH,
+  PreconditionerType::PREC_TRILINOS_FROSCH_BLOCK
 };
 
 /// @brief The list of FSILS preconditioners. 
@@ -298,6 +299,7 @@ const std::map<std::string,PreconditionerType> preconditioner_name_to_type =
   {"trilinos-blockjacobi-uc", PreconditionerType::PREC_TRILINOS_BLOCKJACOBI_UC},
   {"trilinos-amesos2", PreconditionerType::PREC_TRILINOS_AMESOS2},
   {"trilinos-frosch", PreconditionerType::PREC_TRILINOS_FROSCH},
+  {"trilinos-frosch-block", PreconditionerType::PREC_TRILINOS_FROSCH_BLOCK},
 
   {"petsc-jacobi", PreconditionerType::PREC_PETSC_JACOBI},
   {"petsc-rcs", PreconditionerType::PREC_PETSC_RCS}
@@ -318,6 +320,8 @@ const std::map<PreconditionerType, std::string> preconditioner_type_to_name {
   {PreconditionerType::PREC_TRILINOS_ML, "trilinos-ml"},
   {PreconditionerType::PREC_TRILINOS_BLOCKJACOBI_UC, "trilinos-blockjacobi-uc"},
   {PreconditionerType::PREC_TRILINOS_AMESOS2, "trilinos-amesos2"},
+  {PreconditionerType::PREC_TRILINOS_FROSCH, "trilinos-frosch"},
+  {PreconditionerType::PREC_TRILINOS_FROSCH_BLOCK, "trilinos-frosch-block"},
   {PreconditionerType::PREC_PETSC_JACOBI, "petsc-jacobi"},
   {PreconditionerType::PREC_PETSC_RCS, "petsc-rcs"}
 };

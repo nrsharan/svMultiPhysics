@@ -109,3 +109,19 @@ def test_hollow_cylinder_short_frosch(n_proc):
         10,
         name_ref="../hollow_cylinder_short/result_010.vtu",
     )
+
+
+# The same with the two-block FROSch preconditioner (trilinos-frosch-block:
+# displacement with rotations, concentration), which works on a renumbered
+# copy of the matrix.
+@skip_if_no_interface2
+@skip_if_no_frosch
+def test_hollow_cylinder_short_frosch_block(n_proc):
+    run_with_reference(
+        base_folder,
+        "hollow_cylinder_short_frosch_block",
+        fields,
+        n_proc,
+        10,
+        name_ref="../hollow_cylinder_short/result_010.vtu",
+    )

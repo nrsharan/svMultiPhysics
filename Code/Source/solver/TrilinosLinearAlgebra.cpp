@@ -98,9 +98,11 @@ void TrilinosLinearAlgebra::check_options(const consts::PreconditionerType prec_
   }
 
   #ifndef WITH_FROSCH
-  if (prec_cond_type == PreconditionerType::PREC_TRILINOS_FROSCH) {
-    error_msg = "the 'trilinos-frosch' preconditioner needs a Trilinos installation with the ShyLU_DDFROSch "
-        "package (configure Trilinos with -DTrilinos_ENABLE_ShyLU_DDFROSch=ON and rebuild svMultiPhysics).";
+  if (prec_cond_type == PreconditionerType::PREC_TRILINOS_FROSCH ||
+      prec_cond_type == PreconditionerType::PREC_TRILINOS_FROSCH_BLOCK) {
+    error_msg = "the '" + consts::preconditioner_type_to_name.at(prec_cond_type) + "' preconditioner needs a "
+        "Trilinos installation with the ShyLU_DDFROSch package (configure Trilinos with "
+        "-DTrilinos_ENABLE_ShyLU_DDFROSch=ON and rebuild svMultiPhysics).";
   }
   #endif
 

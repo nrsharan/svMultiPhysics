@@ -437,6 +437,7 @@ enum class PreconditionerType
   PREC_TRILINOS_BLOCKJACOBI_UC = 712,
   PREC_TRILINOS_AMESOS2 = 713,
   PREC_TRILINOS_FROSCH = 714,
+  PREC_TRILINOS_FROSCH_BLOCK = 715,
 };
 
 extern const std::set<PreconditionerType> fsils_preconditioners;

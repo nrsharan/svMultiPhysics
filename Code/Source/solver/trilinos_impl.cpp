@@ -742,15 +742,17 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
     setAmesos2Preconditioner(trilinos_, trilinos_->amesos2Prec);
     BelosProblem->setLeftPrec(trilinos_->amesos2Prec);
     return;
-  } else if (precondType == TRILINOS_FROSCH_PRECONDITIONER) {
+  } else if (precondType == TRILINOS_FROSCH_PRECONDITIONER ||
+             precondType == TRILINOS_FROSCH_BLOCK_PRECONDITIONER) {
     #ifdef WITH_FROSCH
     checkDiagonalIsZero(trilinos_);
-    setFROSchPreconditioner(trilinos_, dirW, trilinos_->froschPrec);
+    setFROSchPreconditioner(trilinos_, dirW, trilinos_->froschPrec,
+        precondType == TRILINOS_FROSCH_BLOCK_PRECONDITIONER);
     BelosProblem->setLeftPrec(trilinos_->froschPrec);
     return;
     #else
-    throw std::runtime_error("[ERROR Trilinos] The trilinos-frosch preconditioner needs a Trilinos "
-        "installation with the ShyLU_DDFROSch package.");
+    throw std::runtime_error("[ERROR Trilinos] The trilinos-frosch and trilinos-frosch-block preconditioners "
+        "need a Trilinos installation with the ShyLU_DDFROSch package.");
     #endif
   } else {
     throw std::runtime_error("[ERROR Trilinos] Unsupported preconditioner type.");
@@ -771,10 +773,12 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
  * wrapped as a Tpetra_Operator so it can be plugged into Belos through
  * setLeftPrec(). Its subdomains start from the owned and ghost dofs of each
  * process (ghostMap). Dirichlet dofs (dirW == 0, identity rows after the
- * Jacobi scaling) are removed from the interface of the coarse space.
+ * Jacobi scaling) are removed from the interface of the coarse space. With
+ * block (trilinos-frosch-block), the first nsd dofs of every node and the
+ * others form two blocks with their own coarse space.
  */
 void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
-  Teuchos::RCP<Tpetra_Operator>& froschPrec)
+  Teuchos::RCP<Tpetra_Operator>& froschPrec, bool block)
 {
   // GIDs of the Dirichlet dofs on the owned and ghost nodes.
   std::vector<GO> dirichletDofs;
@@ -789,7 +793,7 @@ void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const doub
   try
   {
     froschPrec = frosch_impl::create_preconditioner(trilinos_->K, trilinos_->ghostMap, trilinos_->nodeCoords,
-        trilinos_->nsd, dof, dirichletDofs, trilinos_->froschParameterFile);
+        trilinos_->nsd, dof, dirichletDofs, trilinos_->froschParameterFile, block);
   }
   catch (const std::exception &e)
   {
