@@ -1236,6 +1236,10 @@ class eqType
     /// (<Configuration_file>; for trilinos-frosch, a FROSch parameter list in Teuchos XML format).
     std::string linear_algebra_configuration_file;
 
+    /// @brief Whether the Trilinos interface scales the rows and columns of the
+    /// linear system by 1/sqrt(|diagonal|) before solving it (<Diagonal_scaling>).
+    bool linear_algebra_diagonal_scaling = true;
+
     /// @brief Interface to a numerical linear algebra library.
     LinearAlgebra* linear_algebra = nullptr;
 

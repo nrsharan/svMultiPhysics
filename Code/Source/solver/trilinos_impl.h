@@ -163,6 +163,12 @@ struct Trilinos
   Teuchos::RCP<Tpetra_Operator> amesos2Prec;
   Teuchos::RCP<Tpetra_Operator> froschPrec;
 
+  #ifdef WITH_FROSCH
+  /// FROSch preconditioner kept between solves: set up once, then only
+  /// recomputed for the matrix of each solve (see frosch_impl::Preconditioner).
+  std::shared_ptr<frosch_impl::Preconditioner> frosch;
+  #endif
+
   /// Spatial dimension and nodal coordinates (one column per coordinate on
   /// the owned and ghost nodes), used by the FROSch coarse space.
   int nsd = 3;
@@ -170,6 +176,10 @@ struct Trilinos
 
   /// Optional FROSch parameter list in Teuchos XML format (<Configuration_file>).
   std::string froschParameterFile;
+
+  /// Scale the rows and columns by 1/sqrt(|diagonal|) before solving
+  /// (<Diagonal_scaling>); otherwise only the Dirichlet rows and columns are zeroed.
+  bool diagonalScaling = true;
 
   Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr), blockJacobiPrec(nullptr), amesos2Prec(nullptr),
     froschPrec(nullptr) {}

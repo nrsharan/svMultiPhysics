@@ -1121,6 +1121,7 @@ class LinearAlgebraParameters : public ParameterLists
 
     Parameter<std::string> assembly;
     Parameter<std::string> configuration_file;
+    Parameter<bool> diagonal_scaling;
     Parameter<std::string> preconditioner;
 };
 

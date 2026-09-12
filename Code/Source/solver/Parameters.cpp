@@ -3633,6 +3633,10 @@ LinearAlgebraParameters::LinearAlgebraParameters() {
 
   set_parameter("Configuration_file", "", !required, configuration_file);
 
+  // Trilinos: scale the rows and columns of the linear system by
+  // 1/sqrt(|diagonal|) before solving it.
+  set_parameter("Diagonal_scaling", true, !required, diagonal_scaling);
+
   auto prec_type = consts::preconditioner_type_to_name.at(
       consts::PreconditionerType::PREC_NONE);
   set_parameter("Preconditioner", prec_type, !required, preconditioner);

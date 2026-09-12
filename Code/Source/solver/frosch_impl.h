@@ -15,6 +15,7 @@
   that includes the svMultiPhysics headers. This header only uses Tpetra.
 */
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,10 +43,16 @@ using NO = Tpetra::Map<>::node_type;
 ///    dof, plus the rotations of the displacement dofs if the coordinates
 ///    are given: for block, those of the first block (the first nsd dofs of
 ///    every node); otherwise when all dofs are displacements (dof == nsd).
+///
+/// Unless the file sets them, "Reuse: Coarse Basis" and "Reuse: Coarse Matrix
+/// Symbolic Factorization" are false, so a preconditioner recomputed for a new
+/// matrix (see Preconditioner) is the same as a new one. FROSch's default
+/// (true) keeps the coarse basis of the first matrix.
 Teuchos::RCP<Teuchos::ParameterList> parameters(const std::string& parameterFile, int nsd, int dof,
     bool haveCoordinates, bool block);
 
-/// @brief Create the FROSch two-level overlapping Schwarz preconditioner of K.
+/// @brief FROSch two-level overlapping Schwarz preconditioner, kept between
+/// linear solves.
 ///
 /// Unlike one-level (block Jacobi, additive Schwarz ILU) preconditioners, the
 /// coarse space couples all subdomains, so the number of Krylov iterations
@@ -58,20 +65,41 @@ Teuchos::RCP<Teuchos::ParameterList> parameters(const std::string& parameterFile
 /// renumbered copy of K and wrapped in an operator that renumbers the vectors
 /// (all renumbered dofs stay on their process).
 ///
-/// \param K              assembled matrix (row map: owned dofs, numbered node GID * dof + d)
-/// \param repeatedMap    owned and ghost dofs of the process, numbered node-wise (node GID * dof + d)
-/// \param nodeCoords     coordinates of the owned and ghost nodes (nsd columns), or null
-/// \param nsd            spatial dimension
-/// \param dof            dofs per node
-/// \param dirichletDofs  GIDs of the Dirichlet dofs (removed from the interface of the coarse space)
-/// \param parameterFile  FROSch parameter list in Teuchos XML format, or empty for the defaults
-/// \param block          two blocks: the first nsd dofs of every node and the others (needs dof > nsd)
-Teuchos::RCP<Tpetra::Operator<SC,LO,GO,NO>> create_preconditioner(
-    const Teuchos::RCP<Tpetra::CrsMatrix<SC,LO,GO,NO>>& K,
-    const Teuchos::RCP<const Tpetra::Map<LO,GO,NO>>& repeatedMap,
-    const Teuchos::RCP<const Tpetra::MultiVector<SC,LO,GO,NO>>& nodeCoords,
-    int nsd, int dof, std::vector<GO> dirichletDofs, const std::string& parameterFile,
-    bool block = false);
+/// FROSch sets up in two phases: initialize() builds the overlapping
+/// subdomains and the interface of the coarse space from the sparsity
+/// pattern, the maps, the coordinates and the Dirichlet dofs; compute()
+/// factorizes the subdomain matrices and builds the coarse basis and the
+/// coarse matrix. The first update() does both. A later update() for the same
+/// dofs, repeated map and Dirichlet dofs on every process (e.g. in the next
+/// Newton iteration) only calls compute() for the new matrix, like the
+/// "Recycling" of FROSch's Stratimikos adapter used by FEDDLib.
+class Preconditioner {
+  public:
+    Preconditioner();
+    ~Preconditioner();
+
+    /// @brief Set up or recompute the preconditioner for K (collective).
+    ///
+    /// \param K              assembled matrix (row map: owned dofs, numbered node GID * dof + d)
+    /// \param repeatedMap    owned and ghost dofs of the process, numbered node-wise (node GID * dof + d)
+    /// \param nodeCoords     coordinates of the owned and ghost nodes (nsd columns), or null
+    /// \param nsd            spatial dimension
+    /// \param dof            dofs per node
+    /// \param dirichletDofs  GIDs of the Dirichlet dofs (removed from the interface of the coarse space)
+    /// \param parameterFile  FROSch parameter list in Teuchos XML format, or empty for the defaults
+    /// \param block          two blocks: the first nsd dofs of every node and the others (needs dof > nsd)
+    /// \return the preconditioner as an operator for Belos (the same object when it is recomputed)
+    Teuchos::RCP<Tpetra::Operator<SC,LO,GO,NO>> update(
+        const Teuchos::RCP<Tpetra::CrsMatrix<SC,LO,GO,NO>>& K,
+        const Teuchos::RCP<const Tpetra::Map<LO,GO,NO>>& repeatedMap,
+        const Teuchos::RCP<const Tpetra::MultiVector<SC,LO,GO,NO>>& nodeCoords,
+        int nsd, int dof, std::vector<GO> dirichletDofs, const std::string& parameterFile,
+        bool block = false);
+
+  private:
+    struct State;
+    std::unique_ptr<State> state_;
+};
 
 } // namespace frosch_impl
 

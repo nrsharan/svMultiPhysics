@@ -775,7 +775,9 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
  * process (ghostMap). Dirichlet dofs (dirW == 0, identity rows after the
  * Jacobi scaling) are removed from the interface of the coarse space. With
  * block (trilinos-frosch-block), the first nsd dofs of every node and the
- * others form two blocks with their own coarse space.
+ * others form two blocks with their own coarse space. The preconditioner is
+ * set up once and then only recomputed for the matrix of each solve, as long
+ * as the dofs and the Dirichlet dofs stay the same.
  */
 void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
   Teuchos::RCP<Tpetra_Operator>& froschPrec, bool block)
@@ -792,7 +794,10 @@ void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const doub
 
   try
   {
-    froschPrec = frosch_impl::create_preconditioner(trilinos_->K, trilinos_->ghostMap, trilinos_->nodeCoords,
+    if (!trilinos_->frosch) {
+      trilinos_->frosch = std::make_shared<frosch_impl::Preconditioner>();
+    }
+    froschPrec = trilinos_->frosch->update(trilinos_->K, trilinos_->ghostMap, trilinos_->nodeCoords,
         trilinos_->nsd, dof, dirichletDofs, trilinos_->froschParameterFile, block);
   }
   catch (const std::exception &e)
@@ -1238,19 +1243,23 @@ void constructJacobiScaling(const Teuchos::RCP<Trilinos> &trilinos_, const doubl
     }
   }
 
-  // Extract and modify diagonal of K
-  Tpetra_Vector Kdiag(trilinos_->K->getRowMap());
-  trilinos_->K->getLocalDiagCopy(Kdiag);
+  // Scale by 1/sqrt(|diagonal of K|) as well, unless <Diagonal_scaling> is
+  // false (then the Dirichlet rows and columns are only zeroed).
+  if (trilinos_->diagonalScaling) {
+    // Extract and modify diagonal of K
+    Tpetra_Vector Kdiag(trilinos_->K->getRowMap());
+    trilinos_->K->getLocalDiagCopy(Kdiag);
 
-  auto KdiagView = Kdiag.getLocalViewHost(Tpetra::Access::ReadWrite);
-  for (size_t i = 0; i < KdiagView.extent(0); ++i) {
-    if (KdiagView(i, 0) == 0.0)
-      KdiagView(i, 0) = 1.0;
-    KdiagView(i, 0) = 1.0 / std::sqrt(std::abs(KdiagView(i, 0)));
+    auto KdiagView = Kdiag.getLocalViewHost(Tpetra::Access::ReadWrite);
+    for (size_t i = 0; i < KdiagView.extent(0); ++i) {
+      if (KdiagView(i, 0) == 0.0)
+        KdiagView(i, 0) = 1.0;
+      KdiagView(i, 0) = 1.0 / std::sqrt(std::abs(KdiagView(i, 0)));
+    }
+
+    // diagonal = diagonal * Kdiag (element-wise)
+    diagonal.elementWiseMultiply(1.0, diagonal, Kdiag, 0.0);
   }
-
-  // diagonal = diagonal * Kdiag (element-wise)
-  diagonal.elementWiseMultiply(1.0, diagonal, Kdiag, 0.0);
 
   // Apply scaling to K and F
   trilinos_->K->leftScale(diagonal);
@@ -1452,6 +1461,8 @@ void TrilinosLinearAlgebra::TrilinosImpl::alloc(ComMod& com_mod, eqType& lEq)
   trilinos_lhs_create(trilinos_, gtnNo, lhs.mynNo, tnNo, lhs.nnz, ltg_, com_mod.ltg, com_mod.rowPtr, 
       com_mod.colPtr, dof, cpp_index, task_id, com_mod.lhs.nFaces);
 
+  trilinos_->diagonalScaling = lEq.linear_algebra_diagonal_scaling;
+
   #ifdef WITH_FROSCH
   // Nodal coordinates on the owned and ghost nodes, in the node order of the
   // Trilinos maps (ltg_), for the coarse space of trilinos-frosch.
@@ -1599,6 +1610,13 @@ void TrilinosLinearAlgebra::TrilinosImpl::initialize(ComMod& com_mod)
 
 void TrilinosLinearAlgebra::TrilinosImpl::finalize()
 {
+  #ifdef WITH_FROSCH
+  // The FROSch preconditioner is kept between solves: free it while Kokkos is
+  // still initialized.
+  trilinos_->froschPrec = Teuchos::null;
+  trilinos_->frosch.reset();
+  #endif
+
   if (Kokkos::is_initialized())
   {
     Kokkos::finalize();

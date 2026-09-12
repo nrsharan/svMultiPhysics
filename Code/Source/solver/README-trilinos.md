@@ -39,6 +39,11 @@ The coarse space uses one translation per degree of freedom and, when all degree
 ```
 The top--level list of the file is the parameter list of `FROSch::TwoLevelPreconditioner` (overlap, overlapping and coarse operator types and their sublists, see `parameters()` in `frosch_impl.cpp` for the defaults).
 
+The preconditioner is set up once (overlapping subdomains, interface of the coarse space, symbolic factorizations of the subdomain matrices) and afterwards, as long as the degrees of freedom and the Dirichlet degrees of freedom stay the same, only recomputed for the matrix of each solve (numerical factorizations, coarse basis and coarse matrix), like the recycling of FROSch's Stratimikos adapter used by FEDDLib. Unless the file sets them, `Reuse: Coarse Basis` and `Reuse: Coarse Matrix Symbolic Factorization` in the coarse operator's sublist are false, so the result is the same as a new preconditioner. FROSch's default (true, also used by FEDDLib) keeps the coarse basis of the first matrix for all later ones; `tests/cases/def_diffu/artery_dan/frosch_recycle_coarse_basis.xml` is a parameter file doing so.
+
+### Diagonal scaling
+Before solving, the rows and columns of the linear system are scaled by the inverse square roots of the absolute values of the diagonal entries of the matrix, and the Dirichlet rows and columns are zeroed. `<Diagonal_scaling> false </Diagonal_scaling>` in the `Linear_algebra` section only zeroes the Dirichlet rows and columns, so the preconditioner sees the unscaled matrix (and `trilinos-diagonal` no longer preconditions).
+
 **Files:**
 - `trilinos_impl.h` — type definitions, function declarations, and key data structures
 - `trilinos_impl.cpp` — implementation of assembly, matrix construction, and solve routines
