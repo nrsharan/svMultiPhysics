@@ -49,8 +49,14 @@ rc=$?
 wall=$(( $(date +%s) - start ))
 
 # Peak memory of the largest rank, from Slurm's accounting of this job step
-# (/usr/bin/time is not installed on the compute nodes).
-rss=$(sacct -j ${SLURM_JOB_ID}.0 -n -o MaxRSS 2>/dev/null | head -1 | tr -d ' ')
+# (/usr/bin/time is not installed on the compute nodes). The accounting is
+# recorded a few seconds after the step ends.
+rss=""
+for attempt in 1 2 3 4 5 6; do
+  rss=$(sacct -j ${SLURM_JOB_ID}.0 -n -o MaxRSS 2>/dev/null | head -1 | tr -d ' ')
+  [ -n "$rss" ] && break
+  sleep 5
+done
 echo "EXIT $rc  wall $wall s  peak memory of the largest rank: ${rss:-n/a}"
 echo "errors/NaN/exceptions: $(grep -a -c -i 'error\|nan\|terminat\|exception' run.log)"
 echo "linear solves: $(grep -a -c -E '^ *DD +[0-9]+-[0-9]+' run.log) total, $(grep -a -c 'linear system solution has not converged' run.log) not converged"
