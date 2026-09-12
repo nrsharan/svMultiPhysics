@@ -36,6 +36,10 @@ source $SVMP_SOURCE_DIR/BuildScripts/Elysium-RUB/env.sh
 T=$RUN_ROOT/${CASE}_${PREC}_np${NP}_${SLURM_JOB_ID:-local}
 mkdir -p $T
 rsync -a --exclude '*-procs' $SVMP_SOURCE_DIR/tests/cases/def_diffu/ $T/
+# Run a copy of the program: rebuilding it in place while the job runs makes
+# the running processes fail with a bus error (e.g. on exit).
+cp $EXE $T/svmultiphysics
+EXE=$T/svmultiphysics
 cd $T/$CASE
 sed -i -E "s|<Preconditioner> *[a-z0-9-]+ *</Preconditioner>|<Preconditioner> $PREC </Preconditioner>|" solver.xml
 [ -n "$LSTOL" ] && sed -i -E "s|<Tolerance> *1e-6 *</Tolerance>|<Tolerance> $LSTOL </Tolerance>|" solver.xml
