@@ -193,7 +193,7 @@
    <!-- FROSch with two blocks and its default settings (overlap 1, KLU2 subdomain solves,
         RGDSW coarse space). A FROSch parameter list in Teuchos XML format can
         replace them through <Configuration_file> in <Linear_algebra>. On 4
-        processors the solves take 18-25 GMRES iterations. -->
+        processors the solves take 19-25 GMRES iterations. -->
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
          <Preconditioner> trilinos-frosch-block </Preconditioner>
