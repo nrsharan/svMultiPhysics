@@ -22,7 +22,8 @@
 // Theuchos includes
 #include "Teuchos_RCP.hpp"
 #include "Teuchos_DefaultComm.hpp"
-#include <Teuchos_Time.hpp> 
+#include <Teuchos_Time.hpp>
+#include <Teuchos_TimeMonitor.hpp> 
 
 #include "Kokkos_Core.hpp" 
 #include "Tpetra_KokkosCompat_ClassicNodeAPI_Wrapper.hpp"

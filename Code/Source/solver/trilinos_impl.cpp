@@ -508,6 +508,7 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
   std::cout << "[trilinos_solve] isFassem: " << isFassem << std::endl;
   #endif
   bool flagFassem = isFassem;
+  Teuchos::TimeMonitor solveMonitor(*Teuchos::TimeMonitor::getNewTimer("svMP Trilinos: solve (total)"));
 
   // Already filled from graph so does not need to call fillcomplete
   // routine will sum in contributions from elements on shared nodes amongst
@@ -546,7 +547,10 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
   */
   auto BelosProblem = Teuchos::rcp(new Belos_LinearProblem(K_bdry, trilinos_->X, trilinos_->F));
 
-  setPreconditioner(trilinos_, precondType, BelosProblem, dirW);
+  {
+    Teuchos::TimeMonitor monitor(*Teuchos::TimeMonitor::getNewTimer("svMP Trilinos: preconditioner setup"));
+    setPreconditioner(trilinos_, precondType, BelosProblem, dirW);
+  }
 
   bool set = BelosProblem->setProblem();
   if (!set) {
@@ -1458,8 +1462,11 @@ void TrilinosLinearAlgebra::TrilinosImpl::alloc(ComMod& com_mod, eqType& lEq)
   int cpp_index = 1;
   int task_id = com_mod.cm.idcm();
 
-  trilinos_lhs_create(trilinos_, gtnNo, lhs.mynNo, tnNo, lhs.nnz, ltg_, com_mod.ltg, com_mod.rowPtr, 
-      com_mod.colPtr, dof, cpp_index, task_id, com_mod.lhs.nFaces);
+  {
+    Teuchos::TimeMonitor monitor(*Teuchos::TimeMonitor::getNewTimer("svMP Trilinos: create graph and matrix"));
+    trilinos_lhs_create(trilinos_, gtnNo, lhs.mynNo, tnNo, lhs.nnz, ltg_, com_mod.ltg, com_mod.rowPtr,
+        com_mod.colPtr, dof, cpp_index, task_id, com_mod.lhs.nFaces);
+  }
 
   trilinos_->diagonalScaling = lEq.linear_algebra_diagonal_scaling;
 
@@ -1611,6 +1618,13 @@ void TrilinosLinearAlgebra::TrilinosImpl::initialize(ComMod& com_mod)
 void TrilinosLinearAlgebra::TrilinosImpl::finalize()
 {
   #ifdef WITH_FROSCH
+  // Times of the FROSch setup (initialize, compute) and application, Belos and
+  // the steps of the Trilinos interface, summed over the run (as FEDDLib
+  // prints them).
+  if (trilinos_->frosch) {
+    Teuchos::TimeMonitor::summarize(trilinos_->comm.ptr(), std::cout, false, true, false);
+  }
+
   // The FROSch preconditioner is kept between solves: free it while Kokkos is
   // still initialized.
   trilinos_->froschPrec = Teuchos::null;
