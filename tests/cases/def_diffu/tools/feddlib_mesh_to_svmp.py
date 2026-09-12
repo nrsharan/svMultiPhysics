@@ -176,6 +176,15 @@ def main():
                         help="write the triangles with this flag as mesh-surfaces/NAME.vtp")
     parser.add_argument("--pin", action="append", default=[], metavar="VFLAG:TFLAG:NAME",
                         help="one-element face NAME: a TFLAG triangle containing each vertex flagged VFLAG")
+    parser.add_argument("--dirichlet-override", metavar="FILE",
+                        help="write a FEDDLib geometry override file (FLAG lines, read by FEDDLib's "
+                             "artery_dan_cmm) that gives every node of the written faces the FEDDLib "
+                             "Dirichlet flag chosen by --override-flag, so that FEDDLib constrains exactly "
+                             "svMultiPhysics's node sets")
+    parser.add_argument("--override-flag", action="append", default=[], metavar="FACES=FLAG",
+                        help="FEDDLib flag of the nodes lying on all the named faces (names joined by '+'); "
+                             "rules are tried in the order given and the first match wins, e.g. "
+                             "pin_xz+outer=23 pin_xz=13 bottom+inner=7 bottom=2")
     args = parser.parse_args()
 
     mesh = read_medit(args.medit)
@@ -193,6 +202,7 @@ def main():
     boundary = boundary_faces(tets)
     triangles, tri_flags = mesh.get("Triangles", (np.empty((0, 3), dtype=int), np.empty(0, dtype=int)))
     face_id = 0
+    face_nodes = {}  # face name -> set of its TRI6 nodes, for --dirichlet-override
     for spec in args.face:
         flag, name = spec.split(":")
         selected = triangles[tri_flags == int(flag)]
@@ -202,6 +212,7 @@ def main():
         face_id += 1
         write_face_vtp(points10, conn + 1, owners + 1, face_id,
                        os.path.join(args.out, "mesh-surfaces", f"{name}.vtp"), nodes_per_face=6)
+        face_nodes[name] = set(conn.ravel().tolist())
         print(f"face {name}: flag {flag}, {len(conn)} TRI6 elements")
 
     point_flags = mesh["point_flags"]
@@ -221,8 +232,50 @@ def main():
         face_id += 1
         write_face_vtp(points10, conn + 1, owners + 1, face_id,
                        os.path.join(args.out, "mesh-surfaces", f"{name}.vtp"), nodes_per_face=6)
+        face_nodes[name] = set(conn.ravel().tolist())
         print(f"pin face {name}: vertex flag {vflag} ({len(vertices)} vertices: "
               f"{np.round(points[vertices], 4).tolist()}) on flag-{tflag} triangles")
+
+    if args.dirichlet_override:
+        write_dirichlet_override(args.dirichlet_override, points10, face_nodes, args.override_flag)
+
+
+def write_dirichlet_override(path, points, face_nodes, specs):
+    """FEDDLib FLAG lines 'FLAG x y z flag' for every node of the written faces:
+    the node's position (FEDDLib builds the same straight-edged P2 mesh, so it
+    finds the node by position) and the flag of the first rule whose faces all
+    contain the node."""
+    rules = []
+    for spec in specs:
+        faces, flag = spec.split("=")
+        names = faces.split("+")
+        for name in names:
+            if name not in face_nodes:
+                raise ValueError(f"--override-flag {spec}: no face '{name}' was written")
+        rules.append((names, int(flag), spec))
+    if not rules:
+        raise ValueError("--dirichlet-override needs at least one --override-flag rule")
+
+    lines = []
+    counts = collections.Counter()
+    for node in sorted(set().union(*face_nodes.values())):
+        for names, flag, spec in rules:
+            if all(node in face_nodes[name] for name in names):
+                x, y, z = points[node]
+                lines.append(f"FLAG {x:.17g} {y:.17g} {z:.17g} {flag}")
+                counts[spec] += 1
+                break
+        else:
+            raise ValueError(f"node at {points[node].tolist()} matches no --override-flag rule")
+
+    with open(path, "w") as f:
+        f.write("# FEDDLib Dirichlet flags of svMultiPhysics's constrained nodes, written by\n")
+        f.write("# tests/cases/def_diffu/tools/feddlib_mesh_to_svmp.py with the rules (first match wins):\n")
+        f.write("#   " + " ".join(spec for _, _, spec in rules) + "\n")
+        f.write("# FLAG <straight-P2 node position x y z> <flag>\n")
+        f.write("\n".join(lines) + "\n")
+    print(f"Dirichlet override {path}: {len(lines)} nodes; " +
+          ", ".join(f"{spec}: {counts[spec]}" for _, _, spec in rules))
 
 
 if __name__ == "__main__":
