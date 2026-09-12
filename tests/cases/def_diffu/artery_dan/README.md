@@ -84,6 +84,11 @@ Where the time goes (timer summary printed at the end of the run), 32 ranks:
 - FEDDLib, coarse basis recomputed (1545 s): FROSch `compute` 724 s for 191
   matrices, GMRES 577 s.
 
+On 16 ranks: svMultiPhysics (3905 s) FROSch `compute` 3695 s (overlapping
+subdomains 2150 s, coarse space 1545 s), GMRES 135 s, graph and matrix 13 s;
+FEDDLib with the coarse basis kept (3233 s) FROSch `compute` 1840 s for 191
+matrices, GMRES 978 s.
+
 So the number of GMRES iterations hardly matters for svMultiPhysics; the
 FROSch `compute` for every Newton iteration does. The overlapping subdomains
 have about the same size in both codes (32 ranks, after one layer of overlap:
