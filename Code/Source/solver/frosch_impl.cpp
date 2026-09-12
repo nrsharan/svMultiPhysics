@@ -85,14 +85,16 @@ Teuchos::RCP<Tpetra::Operator<SC,LO,GO,NO>> create_preconditioner(
     nodeList = Xpetra::toXpetra(Teuchos::rcp_const_cast<Tpetra::MultiVector<SC,LO,GO,NO>>(nodeCoords));
   }
 
-  // FROSch looks the Dirichlet dofs up by binary search.
+  // FROSch looks the Dirichlet dofs up by binary search. The list must not be
+  // null on any process, even without Dirichlet dofs: for a null list FROSch
+  // determines the Dirichlet rows itself, which communicates, so a process
+  // whose subdomain has no Dirichlet boundary would enter a communication the
+  // others skip (MPI_Waitall errors or a hang, e.g. on 32 processes).
   std::sort(dirichletDofs.begin(), dirichletDofs.end());
   dirichletDofs.erase(std::unique(dirichletDofs.begin(), dirichletDofs.end()), dirichletDofs.end());
-  Teuchos::ArrayRCP<GO> dirichletBoundaryDofs;
-  if (!dirichletDofs.empty()) {
-    dirichletBoundaryDofs = Teuchos::arcp<GO>(dirichletDofs.size());
-    std::copy(dirichletDofs.begin(), dirichletDofs.end(), dirichletBoundaryDofs.begin());
-  }
+  Teuchos::ArrayRCP<GO> dirichletBoundaryDofs(new GO[std::max<std::size_t>(dirichletDofs.size(), 1)], 0,
+                                              dirichletDofs.size(), true);
+  std::copy(dirichletDofs.begin(), dirichletDofs.end(), dirichletBoundaryDofs.begin());
 
   auto prec = Teuchos::rcp(new FROSch::TwoLevelPreconditioner<SC,LO,GO,NO>(A, params));
   prec->initialize(nsd, dof, params->get("Overlap", 1), Teuchos::null, nodeList, FROSch::NodeWise,
