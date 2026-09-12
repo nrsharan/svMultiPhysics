@@ -2,7 +2,7 @@ import os
 
 import meshio
 
-from .conftest import run_with_reference, skip_if_no_interface2, skip_if_no_trilinos
+from .conftest import run_with_reference, skip_if_no_frosch, skip_if_no_interface2, skip_if_no_trilinos
 
 # Common folder for all tests in this file
 base_folder = "def_diffu"
@@ -87,6 +87,23 @@ def test_hollow_cylinder_short_two_domains(n_proc):
     run_with_reference(
         base_folder,
         "hollow_cylinder_short_two_domains",
+        fields,
+        n_proc,
+        10,
+        name_ref="../hollow_cylinder_short/result_010.vtu",
+    )
+
+
+# The same case solved iteratively with the FROSch two-level overlapping
+# Schwarz preconditioner (trilinos-frosch; needs a Trilinos with
+# ShyLU_DDFROSch): with the linear solves converged to 1e-10 it must
+# reproduce the direct-solver reference on any number of processors.
+@skip_if_no_interface2
+@skip_if_no_frosch
+def test_hollow_cylinder_short_frosch(n_proc):
+    run_with_reference(
+        base_folder,
+        "hollow_cylinder_short_frosch",
         fields,
         n_proc,
         10,

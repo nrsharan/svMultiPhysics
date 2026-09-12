@@ -97,6 +97,13 @@ void TrilinosLinearAlgebra::check_options(const consts::PreconditionerType prec_
     error_msg = "trilinos linear algebra can't use '" + prec_cond_type_name + "' for a preconditioner.";
   }
 
+  #ifndef WITH_FROSCH
+  if (prec_cond_type == PreconditionerType::PREC_TRILINOS_FROSCH) {
+    error_msg = "the 'trilinos-frosch' preconditioner needs a Trilinos installation with the ShyLU_DDFROSch "
+        "package (configure Trilinos with -DTrilinos_ENABLE_ShyLU_DDFROSch=ON and rebuild svMultiPhysics).";
+  }
+  #endif
+
   if ((assembly_type != consts::LinearAlgebraType::none) && 
       (valid_assemblers.count(assembly_type) == 0)) {
     auto assembly_type_name = LinearAlgebra::type_to_name.at(assembly_type);

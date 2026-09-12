@@ -80,6 +80,16 @@ if(SV_USE_TRILINOS)
     endif()
 
     set(USE_TRILINOS 1)
+
+    # The trilinos-frosch preconditioner needs the FROSch domain decomposition
+    # package (Trilinos configured with -DTrilinos_ENABLE_ShyLU_DDFROSch=ON).
+    list(FIND Trilinos_PACKAGE_LIST ShyLU_DDFROSch FROSCH_INDEX)
+    if(NOT FROSCH_INDEX EQUAL -1)
+      set(USE_FROSCH 1)
+      MESSAGE("Trilinos provides ShyLU_DDFROSch: the trilinos-frosch preconditioner is available.\n")
+    else()
+      MESSAGE("Trilinos does not provide ShyLU_DDFROSch: the trilinos-frosch preconditioner is not available.\n")
+    endif()
   ELSE()
     MESSAGE(WARNING "Could not find Trilinos. Compiling svMultiPhysics without Trilinos.")
   ENDIF()
@@ -90,6 +100,14 @@ endif()
 if(USE_TRILINOS)
   ADD_DEFINITIONS(-DWITH_TRILINOS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CMAKE_CXX_STANDARD}")
+endif()
+
+# Recorded in the cache so that the tests can tell whether trilinos-frosch is available.
+if(USE_FROSCH)
+  ADD_DEFINITIONS(-DWITH_FROSCH)
+  set(SV_TRILINOS_HAS_FROSCH ON CACHE INTERNAL "Trilinos provides ShyLU_DDFROSch")
+else()
+  set(SV_TRILINOS_HAS_FROSCH OFF CACHE INTERNAL "Trilinos provides ShyLU_DDFROSch")
 endif()
 
 # Build with the PETSc linear algebra package.
@@ -312,6 +330,11 @@ if(USE_TRILINOS)
   include_directories(${Trilinos_INCLUDE_DIRS})
   link_directories(${Trilinos_LIBRARY_DIRS})
   link_directories(${Trilinos_TPL_LIBRARY_DIRS})
+endif()
+
+# The FROSch preconditioner is compiled on its own (see frosch_impl.h).
+if(USE_FROSCH)
+  set(CSRCS ${CSRCS} frosch_impl.h frosch_impl.cpp)
 endif()
 
 simvascular_add_executable(${SV_MULTIPHYSICS_EXE}

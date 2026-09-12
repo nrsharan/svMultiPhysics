@@ -26,10 +26,22 @@ Instead, svMultiPhysics allows a dedicated AMG parameters file, letting advanced
 - tailor AMG behavior to their problem class
 - experiment with performance tuning without modifying the main simulation input files
 This approach keeps the main input format clean while still providing expert--level control for those who need it. In order to use the AMG parameters from file, a file named exactly `mueluOptions.xml` must be in the same folder where the simulation input file is. An example `mueluOptions.xml` file is included in the svMultiPhysics/Code/Source/solver directory.
+- `trilinos-amesos2`: a direct sparse LU factorization (Amesos2 KLU2) of the whole matrix used as the preconditioner, so the Krylov solver converges in one or two iterations. Robust for any problem, but memory and time grow quickly with the problem size.
+- `trilinos-frosch`: a two--level overlapping Schwarz preconditioner from FROSch (Trilinos package ShyLU_DDFROSch). Each process solves its subdomain, extended by one layer of overlap, exactly (KLU2), and an RGDSW coarse space built from the interfaces between the subdomains couples them globally, so the number of iterations stays nearly constant as the number of processes grows. It works for systems where the one--level preconditioners above fail to converge, e.g. the coupled `deformation-diffusion` equation. Only available when Trilinos is built with `-DTrilinos_ENABLE_ShyLU_DDFROSch=ON`.
+### Notes on the trilinos-frosch
+The coarse space uses one translation per degree of freedom and, when all degrees of freedom of a node are displacements (e.g. `struct`), also the rotations computed from the nodal coordinates. Dirichlet degrees of freedom are removed from the subdomain interfaces. The default FROSch settings (hard--coded in `frosch_impl.cpp`, following those of the FEDDLib library) can be replaced by a FROSch parameter list in Teuchos XML format given in the `Linear_algebra` section:
+```
+<Linear_algebra type="trilinos" >
+  <Preconditioner> trilinos-frosch </Preconditioner>
+  <Configuration_file> frosch.xml </Configuration_file>
+</Linear_algebra>
+```
+The top--level list of the file is the parameter list of `FROSch::TwoLevelPreconditioner` (overlap, overlapping and coarse operator types and their sublists, see `parameters()` in `frosch_impl.cpp` for the defaults).
 
 **Files:**
 - `trilinos_impl.h` — type definitions, function declarations, and key data structures
 - `trilinos_impl.cpp` — implementation of assembly, matrix construction, and solve routines
+- `frosch_impl.h`, `frosch_impl.cpp` — the FROSch preconditioner (compiled only with a Trilinos providing ShyLU_DDFROSch; kept in its own file because the FROSch headers clash with svMultiPhysics type names)
 
 ---
 
@@ -252,6 +264,8 @@ Implemented in `setPreconditioner(...)`:
 | `TRILINOS_RILUK0_PRECONDITIONER` | Ifpack2 RILUK(0) | Relaxed ILU (level 0) |
 | `TRILINOS_RILUK1_PRECONDITIONER` | Ifpack2 RILUK(1) | Relaxed ILU (level 1) |
 | `TRILINOS_ML_PRECONDITIONER` | MueLu | Algebraic multigrid (smoothed aggregation) |
+| `TRILINOS_AMESOS2_PRECONDITIONER` | Amesos2 KLU2 | Direct factorization of the whole matrix |
+| `TRILINOS_FROSCH_PRECONDITIONER` | FROSch | Two-level overlapping Schwarz (KLU2 subdomain solves, RGDSW coarse space); `setFROSchPreconditioner(...)` and `frosch_impl.cpp`, only with `WITH_FROSCH` |
 
 **MueLu (ML) preconditioner:**
 - Configured in `setMueLuPreconditioner(...)`.

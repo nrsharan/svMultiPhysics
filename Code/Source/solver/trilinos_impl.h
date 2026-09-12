@@ -75,6 +75,12 @@
 #include "Amesos2_KLU2_decl.hpp"
 #include "Amesos2_KLU2_def.hpp"
 
+// FROSch (ShyLU_DDFROSch) two-level overlapping Schwarz preconditioner,
+// compiled separately in frosch_impl.cpp.
+#ifdef WITH_FROSCH
+#include "frosch_impl.h"
+#endif
+
 /**************************************************************/
 /*                      Types Definitions                     */
 /**************************************************************/
@@ -132,6 +138,7 @@ using MueLu_Preconditioner = Tpetra_Operator;
 #define TRILINOS_ML_PRECONDITIONER 708
 #define TRILINOS_BLOCKJACOBI_UC_PRECONDITIONER 712
 #define TRILINOS_AMESOS2_PRECONDITIONER 713
+#define TRILINOS_FROSCH_PRECONDITIONER 714
 
 /// @brief Initialize all Epetra types we need separate from Fortran
 struct Trilinos
@@ -153,7 +160,18 @@ struct Trilinos
   Teuchos::RCP<Ifpack2_Preconditioner> ifpackPrec;
   Teuchos::RCP<Tpetra_Operator> blockJacobiPrec;
   Teuchos::RCP<Tpetra_Operator> amesos2Prec;
-  Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr), blockJacobiPrec(nullptr), amesos2Prec(nullptr) {}
+  Teuchos::RCP<Tpetra_Operator> froschPrec;
+
+  /// Spatial dimension and nodal coordinates (one column per coordinate on
+  /// the owned and ghost nodes), used by the FROSch coarse space.
+  int nsd = 3;
+  Teuchos::RCP<Tpetra_MultiVector> nodeCoords;
+
+  /// Optional FROSch parameter list in Teuchos XML format (<Configuration_file>).
+  std::string froschParameterFile;
+
+  Trilinos() : MueluPrec(nullptr), ifpackPrec(nullptr), blockJacobiPrec(nullptr), amesos2Prec(nullptr),
+    froschPrec(nullptr) {}
 };
 
 /**
@@ -343,7 +361,7 @@ public:
 
 // --- Define functions to only be called in C++ ------------------------------
 void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType, 
-  Teuchos::RCP<Belos_LinearProblem>& BelosProblem);
+  Teuchos::RCP<Belos_LinearProblem>& BelosProblem, const double *dirW);
 
 void setMueLuPreconditioner(Teuchos::RCP<MueLu_Preconditioner>& MueLuPrec,
   const Teuchos::RCP<Tpetra_CrsMatrix>& A, int numEquations = -1);
@@ -353,6 +371,11 @@ void setBlockJacobiUCPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
 
 void setAmesos2Preconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
   Teuchos::RCP<Tpetra_Operator>& amesos2Prec);
+
+#ifdef WITH_FROSCH
+void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
+  Teuchos::RCP<Tpetra_Operator>& froschPrec);
+#endif
 
 void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_);
 void checkDiagonalIsZero(const Teuchos::RCP<Tpetra_CrsMatrix> &A);

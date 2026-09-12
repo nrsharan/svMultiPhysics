@@ -232,6 +232,10 @@ Amesos2
 Zoltan2
 Kokkos
 ```
+The `trilinos-frosch` preconditioner (two-level overlapping Schwarz) additionally needs the FROSch package, enabled with
+`-DTrilinos_ENABLE_ShyLU_DDFROSch=ON` (together with `-DTrilinos_ENABLE_Xpetra=ON`; enable the ShyLU_DDFROSch subpackage
+rather than its parent ShyLU_DD, which requires Epetra). svMultiPhysics detects it when it is configured and compiles the
+preconditioner only if it is present.
 
 ## Building PETSc
 

@@ -64,6 +64,17 @@ skip_if_no_interface2 = pytest.mark.skipif(
     reason="svMultiPhysics not built with Interface2 (SV_USE_INTERFACE2=OFF in CMakeCache.txt)",
 )
 
+# The trilinos-frosch preconditioner needs a Trilinos with the ShyLU_DDFROSch
+# package, recorded as SV_TRILINOS_HAS_FROSCH when the main build is configured.
+HAS_FROSCH = HAS_TRILINOS and (
+    read_cmake_cache_variable(cmake_cache_path_for(cpp_exec), "SV_TRILINOS_HAS_FROSCH") or ""
+).upper() in ("ON", "1", "TRUE", "YES")
+skip_if_no_frosch = pytest.mark.skipif(
+    not HAS_FROSCH,
+    reason="svMultiPhysics not built with a Trilinos that provides ShyLU_DDFROSch "
+    "(SV_TRILINOS_HAS_FROSCH=OFF in CMakeCache.txt)",
+)
+
 
 def _detect_oversubscribe_flag():
     """Return the mpirun flag needed to allow more ranks than physical cores.

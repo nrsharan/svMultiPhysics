@@ -546,7 +546,7 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
   */
   auto BelosProblem = Teuchos::rcp(new Belos_LinearProblem(K_bdry, trilinos_->X, trilinos_->F));
 
-  setPreconditioner(trilinos_, precondType, BelosProblem);
+  setPreconditioner(trilinos_, precondType, BelosProblem, dirW);
 
   bool set = BelosProblem->setProblem();
   if (!set) {
@@ -673,8 +673,8 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
 } // trilinos_solve_
 
 // ----------------------------------------------------------------------------
-void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType, 
-  Teuchos::RCP<Belos_LinearProblem>& BelosProblem)
+void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
+  Teuchos::RCP<Belos_LinearProblem>& BelosProblem, const double *dirW)
 {
   if (precondType == TRILINOS_DIAGONAL_PRECONDITIONER ||
       precondType == NO_PRECONDITIONER) {
@@ -742,6 +742,16 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
     setAmesos2Preconditioner(trilinos_, trilinos_->amesos2Prec);
     BelosProblem->setLeftPrec(trilinos_->amesos2Prec);
     return;
+  } else if (precondType == TRILINOS_FROSCH_PRECONDITIONER) {
+    #ifdef WITH_FROSCH
+    checkDiagonalIsZero(trilinos_);
+    setFROSchPreconditioner(trilinos_, dirW, trilinos_->froschPrec);
+    BelosProblem->setLeftPrec(trilinos_->froschPrec);
+    return;
+    #else
+    throw std::runtime_error("[ERROR Trilinos] The trilinos-frosch preconditioner needs a Trilinos "
+        "installation with the ShyLU_DDFROSch package.");
+    #endif
   } else {
     throw std::runtime_error("[ERROR Trilinos] Unsupported preconditioner type.");
   }
@@ -753,6 +763,40 @@ void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,
   BelosProblem->setLeftPrec(trilinos_->ifpackPrec);
 
 } // setPreconditioner
+
+#ifdef WITH_FROSCH
+// ----------------------------------------------------------------------------
+/**
+ * FROSch two-level overlapping Schwarz preconditioner (see frosch_impl.h),
+ * wrapped as a Tpetra_Operator so it can be plugged into Belos through
+ * setLeftPrec(). Its subdomains start from the owned and ghost dofs of each
+ * process (ghostMap). Dirichlet dofs (dirW == 0, identity rows after the
+ * Jacobi scaling) are removed from the interface of the coarse space.
+ */
+void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
+  Teuchos::RCP<Tpetra_Operator>& froschPrec)
+{
+  // GIDs of the Dirichlet dofs on the owned and ghost nodes.
+  std::vector<GO> dirichletDofs;
+  for (int i = 0; i < ghostAndLocalNodes; ++i) {
+    for (int j = 0; j < dof; ++j) {
+      if (dirW[i * dof + j] == 0.0) {
+        dirichletDofs.push_back(localToGlobalSorted[i] * dof + j);
+      }
+    }
+  }
+
+  try
+  {
+    froschPrec = frosch_impl::create_preconditioner(trilinos_->K, trilinos_->ghostMap, trilinos_->nodeCoords,
+        trilinos_->nsd, dof, dirichletDofs, trilinos_->froschParameterFile);
+  }
+  catch (const std::exception &e)
+  {
+    throw std::runtime_error(std::string("[setFROSchPreconditioner] failed: ") + e.what());
+  }
+} // setFROSchPreconditioner
+#endif
 
 // ----------------------------------------------------------------------------
 /*
@@ -1403,6 +1447,22 @@ void TrilinosLinearAlgebra::TrilinosImpl::alloc(ComMod& com_mod, eqType& lEq)
 
   trilinos_lhs_create(trilinos_, gtnNo, lhs.mynNo, tnNo, lhs.nnz, ltg_, com_mod.ltg, com_mod.rowPtr, 
       com_mod.colPtr, dof, cpp_index, task_id, com_mod.lhs.nFaces);
+
+  #ifdef WITH_FROSCH
+  // Nodal coordinates on the owned and ghost nodes, in the node order of the
+  // Trilinos maps (ltg_), for the coarse space of trilinos-frosch.
+  int nsd = com_mod.nsd;
+  auto nodeMap = Teuchos::rcp(new Tpetra_Map(Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(),
+      Teuchos::arrayView(ltg_.data(), tnNo), 0, trilinos_->comm));
+  trilinos_->nsd = nsd;
+  trilinos_->nodeCoords = Teuchos::rcp(new Tpetra_MultiVector(nodeMap, nsd));
+  for (int a = 0; a < tnNo; a++) {
+    for (int i = 0; i < nsd; i++) {
+      trilinos_->nodeCoords->replaceLocalValue(lhs.map(a), i, com_mod.x(i,a));
+    }
+  }
+  trilinos_->froschParameterFile = lEq.linear_algebra_configuration_file;
+  #endif
 }
 
 /// @brief Assemble local element arrays.

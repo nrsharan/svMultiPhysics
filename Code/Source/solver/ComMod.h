@@ -1232,6 +1232,10 @@ class eqType
     /// @brief The type of preconditioner used by the interface to a numerical linear algebra library.
     consts::PreconditionerType linear_algebra_preconditioner = consts::PreconditionerType::PREC_FSILS;
 
+    /// @brief Optional configuration file of the linear algebra interface
+    /// (<Configuration_file>; for trilinos-frosch, a FROSch parameter list in Teuchos XML format).
+    std::string linear_algebra_configuration_file;
+
     /// @brief Interface to a numerical linear algebra library.
     LinearAlgebra* linear_algebra = nullptr;
 

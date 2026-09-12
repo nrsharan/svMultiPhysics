@@ -346,6 +346,7 @@ RUN cmake \
 -DTrilinos_ENABLE_KokkosKernels=ON \
 -DTrilinos_ENABLE_Xpetra=ON \
 -DXpetra_ENABLE_Kokkos_compat=ON \
+-DTrilinos_ENABLE_ShyLU_DDFROSch=ON \
 -DTrilinos_ENABLE_EXPLICIT_INSTANTIATION=ON \
 -DTpetra_INST_SERIAL=ON \
 -DTpetra_INST_DOUBLE=ON \

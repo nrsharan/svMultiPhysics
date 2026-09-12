@@ -2274,7 +2274,8 @@ void read_ls(Simulation* simulation, EquationParameters* eq_params, consts::Solv
   lEq.linear_algebra_type = LinearAlgebra::name_to_type.at(linear_algebra.type());
   auto prec_type = consts::preconditioner_name_to_type.at(linear_algebra.preconditioner());
   lEq.linear_algebra_preconditioner = consts::preconditioner_name_to_type.at(linear_algebra.preconditioner());
-  lEq.linear_algebra_assembly_type = LinearAlgebra::name_to_type.at(linear_algebra.assembly()); 
+  lEq.linear_algebra_assembly_type = LinearAlgebra::name_to_type.at(linear_algebra.assembly());
+  lEq.linear_algebra_configuration_file = linear_algebra.configuration_file();
 
   // Check that equation physics is compatible with the LinearAlgebra type. 
   for (auto& domain : lEq.dmn) {
