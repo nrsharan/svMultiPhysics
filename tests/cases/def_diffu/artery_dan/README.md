@@ -66,13 +66,18 @@ solve. Wall times of the same run vary by up to about 10% between nodes.
 | Run | 16 ranks: wall, GMRES its | 32 ranks: wall, GMRES its |
 |---|---|---|
 | svMultiPhysics `trilinos-frosch`, FROSch set up for every solve | 3972 s, 25.1 | 1576 s, 33.0 |
-| svMultiPhysics `trilinos-frosch`, setup kept (current) | 4063 s, 25.1 | 1522 s, 33.0 |
+| svMultiPhysics `trilinos-frosch`, setup kept, symbolic factorization reused | 4063 s, 25.1 | 1522 s, 33.0 |
 | svMultiPhysics `trilinos-frosch-block`, set up for every solve | 4517 s, 24.1 | 1685 s, 30.3 |
-| svMultiPhysics `trilinos-frosch-block`, setup kept (current) | 4123 s, 24.1 | 1368 s, 30.3 |
+| svMultiPhysics `trilinos-frosch-block`, setup kept, symbolic factorization reused | 4123 s, 24.1 | 1368 s, 30.3 |
 | svMultiPhysics `trilinos-frosch`, `<Diagonal_scaling> false` | 3739 s, 24.8 | 1611 s, 32.1 |
 | svMultiPhysics `trilinos-frosch`, coarse basis kept (`frosch_recycle_coarse_basis.xml`) | 3588 s, 27.1 | 1438 s, 35.8 |
 | FEDDLib `artery_dan_cmm` (coarse basis kept) | 3233 s, 203.7 | 1735 s, 266.0 |
 | FEDDLib, coarse basis recomputed | 3464 s, 156.5 | 1545 s, 192.2 |
+| svMultiPhysics `trilinos-frosch`, symbolic factorization not reused (current default) | | 711 s, 33.0 |
+| svMultiPhysics `trilinos-frosch`, reused, stored zeros dropped (`SVMP_FROSCH_DROP_ZEROS`) | 1843 s, 25.1 | 718 s, 33.0 |
+| svMultiPhysics `trilinos-frosch-block`, FEDDLib's FROSch settings (`frosch_block_feddlib.xml`) | 1608 s, 26.8 | 702 s, 34.7 |
+| svMultiPhysics `trilinos-frosch-block`, basis entries below 1e-5 dropped (`frosch_block_dropping.xml`) | | 714 s, 30.3 |
+| svMultiPhysics `trilinos-frosch-block`, FEDDLib's settings and stored zeros dropped | | 676 s, 34.7 |
 
 Keeping the FROSch setup gives the same iterations as setting it up anew.
 Where the time goes (timer summary printed at the end of the run), 32 ranks:
@@ -123,3 +128,43 @@ The first Newton system of both codes (16 ranks; written with
   1 against a median of 426); svMultiPhysics removes the rows and columns and
   scales the system symmetrically. FROSch finds FEDDLib's Dirichlet rows itself
   (rows with a single nonzero entry).
+
+### The cost of the FROSch setup
+
+With "Reuse: Symbolic Factorization" (FROSch's default), FROSch updates the
+overlapping subdomain matrices of every new matrix entry by entry, which is
+slower than extracting and factorizing them anew, the more so for the long
+rows of svMultiPhysics's matrix (up to 315 entries). Not reusing it (FEDDLib
+does not either, and it is now svMultiPhysics's default), or dropping the
+stored zeros, halves the whole run on 32 ranks (711 s and 718 s instead of
+1522 s, same iterations); both remove the same cost. For the block
+preconditioner, dropping coarse basis entries below 1e-5 as FEDDLib does
+halves it as well (714 s instead of 1368 s, same iterations). svMultiPhysics
+is now faster than FEDDLib on 16 and 32 ranks.
+
+### The number of GMRES iterations
+
+FEDDLib still needs about 6 times more GMRES iterations per solve (first time
+step, 16 ranks: 171, 146, 160, 142 against 24, 22, 21). What was ruled out:
+
+- The systems (above): the same up to a constant factor in the displacement
+  block (0.1%); the displacement block is dominated by the stiffness.
+- svMultiPhysics with FEDDLib's Dirichlet treatment (identity rows, columns
+  kept, unscaled), without passing the Dirichlet dofs to FROSch, or without
+  diagonal scaling (hollow_cylinder_short): at most 8% more iterations.
+- svMultiPhysics with FEDDLib's FROSch settings (block, rotations, basis
+  entries below 1e-5 dropped, coarse basis kept): 26.8 and 34.7 iterations.
+- FEDDLib without rotations: slightly more iterations (199, 164, 181, 163).
+- NOX's Jacobian: FEDDLib's GMRES operator equals the merged system FROSch is
+  built from in every Newton iteration (`FEDD_WRITE_SYSTEM` check in
+  TimeProblem).
+- The partitions: every process's nodes are connected in both codes, with
+  subdomains of about the same size.
+
+The difference is already in FROSch's first level: with only the first level
+(FROSch::OneLevelPreconditioner, one layer of overlap grown from the owned
+rows), svMultiPhysics needs 55, 52, 52 iterations and FEDDLib 557, 477, 530,
+470. The remaining candidates are the left (svMultiPhysics) against the right
+(FEDDLib) preconditioning of GMRES and details of how the two codes hand the
+matrix and maps to FROSch; a small driver solving both written systems with
+the same FROSch and GMRES settings and partition would separate them.
