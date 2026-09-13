@@ -3,8 +3,7 @@
 
 // Time segments: piecewise-constant time step sizes
 // (GeneralSimulationParameters <Add_time_step_segment>) and on/off time
-// intervals (<Time_segments> in <CCBActiveCMMGandR>). The rules follow
-// FEDDLib's "Timestepping Intervalls".
+// intervals (<Time_segments> in <CCBActiveCMMGandR>).
 
 #ifndef TIME_SEGMENTS_H
 #define TIME_SEGMENTS_H

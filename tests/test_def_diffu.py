@@ -8,7 +8,7 @@ from .conftest import run_with_reference, skip_if_no_frosch, skip_if_no_interfac
 base_folder = "def_diffu"
 
 # Post-processing quantities of the Interface2/AceGen element that the cases
-# write (see their solver.xml): those the FEDDLib artery examples export, the
+# write (see their solver.xml): the principal Cauchy stresses and others, the
 # Cauchy stress tensor, the fiber directions, the growth orientation vectors
 # and the active stretches.
 post_fields = [

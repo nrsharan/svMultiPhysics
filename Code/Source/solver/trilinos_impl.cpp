@@ -1675,8 +1675,7 @@ void TrilinosLinearAlgebra::TrilinosImpl::finalize()
 {
   #ifdef WITH_FROSCH
   // Times of the FROSch setup (initialize, compute) and application, Belos and
-  // the steps of the Trilinos interface, summed over the run (as FEDDLib
-  // prints them).
+  // the steps of the Trilinos interface, summed over the run.
   if (trilinos_->frosch) {
     Teuchos::TimeMonitor::summarize(trilinos_->comm.ptr(), std::cout, false, true, false);
   }

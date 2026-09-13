@@ -1,12 +1,7 @@
 <!--
-  FROSch parameters of trilinos-frosch (the defaults in frosch_impl.cpp for 3
-  displacements and a concentration per node) with the recycling of FEDDLib's
-  artery_dan_cmm (preconditionerParameters_Structure.xml): the coarse basis of
-  the first matrix is kept for all later matrices. Use in <Linear_algebra>:
-    <Configuration_file> frosch_recycle_coarse_basis.xml </Configuration_file>
-  FEDDLib also reuses the symbolic factorization of the coarse matrix; with
-  svMultiPhysics that made KLU2 fail (bus error in klu_kernel_factor) in the
-  7th time step of hollow_cylinder_short on 4 processes, so it is not reused.
+  FROSch settings for trilinos-frosch-block: coarse basis entries below 1e-5 dropped, the coarse basis of the first matrix kept for all later matrices, and no reuse of the symbolic factorizations of the subdomain and coarse matrices (reusing the latter made KLU2 fail).
+  Use with <Preconditioner> trilinos-frosch-block </Preconditioner> in <Linear_algebra>:
+    <Configuration_file> frosch_block.xml </Configuration_file>
 -->
 <ParameterList name="FROSch">
   <Parameter name="Overlap" type="int" value="1"/>
@@ -14,8 +9,8 @@
   <Parameter name="Level Combination" type="string" value="Additive"/>
   <Parameter name="OverlappingOperator Type" type="string" value="AlgebraicOverlappingOperator"/>
   <Parameter name="CoarseOperator Type" type="string" value="RGDSWCoarseOperator"/>
-
   <ParameterList name="AlgebraicOverlappingOperator">
+    <Parameter name="Reuse: Symbolic Factorization" type="bool" value="false"/>
     <Parameter name="Combine Values in Overlap" type="string" value="Averaging"/>
     <Parameter name="Adding Layers Strategy" type="string" value="CrsGraph"/>
     <Parameter name="Verbosity" type="string" value="None"/>
@@ -24,12 +19,20 @@
       <Parameter name="Solver" type="string" value="klu2"/>
     </ParameterList>
   </ParameterList>
-
   <ParameterList name="RGDSWCoarseOperator">
+    <Parameter name="Phi: Dropping Threshold" type="double" value="1.0e-5"/>
     <Parameter name="Reuse: Coarse Basis" type="bool" value="true"/>
+    <Parameter name="Reuse: Coarse Matrix" type="bool" value="false"/>
+    <Parameter name="Reuse: Extension Symbolic Factorization" type="bool" value="true"/>
     <Parameter name="Reuse: Coarse Matrix Symbolic Factorization" type="bool" value="false"/>
     <ParameterList name="Blocks">
       <ParameterList name="1">
+        <Parameter name="Use For Coarse Space" type="bool" value="true"/>
+        <Parameter name="Option" type="string" value="2.2"/>
+        <Parameter name="Rotations" type="bool" value="true"/>
+        <Parameter name="Verbosity" type="string" value="None"/>
+      </ParameterList>
+      <ParameterList name="2">
         <Parameter name="Use For Coarse Space" type="bool" value="true"/>
         <Parameter name="Option" type="string" value="1"/>
         <Parameter name="Rotations" type="bool" value="false"/>

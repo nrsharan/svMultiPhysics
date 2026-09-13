@@ -71,8 +71,8 @@ using AceGenInterface::DeformationDiffusionConstrainedMixtureModelSmoothMuscleAc
 ///     before the dash and a human-readable, space-containing description
 ///     after it.
 ///
-/// This function takes the post-dash, pre-underscore substring (the
-/// FEDDLib convention for this AceGen naming scheme), then falls back to
+/// This function takes the post-dash, pre-underscore substring (the usual
+/// reading of this AceGen naming scheme), then falls back to
 /// the pre-dash token if that substring is empty or contains whitespace
 /// (never valid in an actual parameter name).
 std::string clean_domain_data_name(const std::string& raw) {

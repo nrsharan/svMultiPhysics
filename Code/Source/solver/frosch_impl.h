@@ -36,8 +36,7 @@ using NO = Tpetra::Map<>::node_type;
 /// @brief FROSch parameter list: the file parameterFile (a Teuchos XML
 /// parameter list for FROSch::TwoLevelPreconditioner, or for
 /// FROSch::TwoLevelBlockPreconditioner if block is true) if it is given,
-/// otherwise the settings of FEDDLib's FROSch preconditioners with KLU2 as
-/// the direct solver:
+/// otherwise these settings, with KLU2 as the direct solver:
 ///  - one layer of algebraic overlap, subdomain problems solved exactly;
 ///  - an RGDSW coarse space, solved on one process, with a translation per
 ///    dof, plus the rotations of the displacement dofs if the coordinates
@@ -74,8 +73,8 @@ Teuchos::RCP<Teuchos::ParameterList> parameters(const std::string& parameterFile
 /// factorizes the subdomain matrices and builds the coarse basis and the
 /// coarse matrix. The first update() does both. A later update() for the same
 /// dofs, repeated map and Dirichlet dofs on every process (e.g. in the next
-/// Newton iteration) only calls compute() for the new matrix, like the
-/// "Recycling" of FROSch's Stratimikos adapter used by FEDDLib.
+/// Newton iteration) only calls compute() for the new matrix, as the
+/// "Recycling" option of FROSch's Stratimikos adapter does.
 class Preconditioner {
   public:
     Preconditioner();

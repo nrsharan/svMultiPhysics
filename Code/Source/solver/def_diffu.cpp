@@ -21,8 +21,7 @@
 // Domain-data flags with time segments (<Time_segments> in
 // <CCBActiveCMMGandR>) are set at the start of every time step by
 // advance_time_step(), which also runs the one-time initialization of a
-// flag's first switch-on, as FEDDLib's initializeActiveResponse() and
-// initializeGrowth() do.
+// flag's first switch-on.
 
 #include "def_diffu.h"
 
@@ -310,7 +309,7 @@ void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionState
         continue;
       }
 
-      // As in FEDDLib, the one-time initializations of this step's first
+      // The one-time initializations of this step's first
       // switch-ons are evaluated with the previous step's flag values; the
       // new values are assigned afterwards.
       for (auto& flag : dmn.ccb_active_cmm_gandr_flag_segments) {
@@ -320,7 +319,7 @@ void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionState
         flag.initialized = true;
 
         // A restart after the first switch-on continues from the restarted
-        // state (as in FEDDLib).
+        // state.
         const double first_start = flag.intervals.front()[0];
         const bool restarted_after_start = previous_time > first_start &&
                                            !time_segments::approx_equal(previous_time, first_start);

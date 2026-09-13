@@ -19,8 +19,9 @@ paths at the top.
 ## Notes for other machines and clusters
 
 - svMultiPhysics's Trilinos interface uses global ordinal `int`
-  (`Tpetra_INST_INT_INT=ON`); a Trilinos built for FEDDLib (`long long`) cannot
-  be used, since Tpetra supports one global ordinal per build.
+  (`Tpetra_INST_INT_INT=ON`); a Trilinos built with another global ordinal
+  (e.g. `long long`) cannot be used, since Tpetra supports one global ordinal
+  per build.
 - The `trilinos-frosch` preconditioner needs `-DTrilinos_ENABLE_ShyLU_DDFROSch=ON`
   (the subpackage, not ShyLU_DD, which requires Epetra). svMultiPhysics reports at
   configure time whether Trilinos provides it. The Linux reference configuration

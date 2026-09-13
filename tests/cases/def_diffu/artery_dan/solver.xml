@@ -2,20 +2,15 @@
 <svMultiPhysicsFile version="0.1">
 
 <GeneralSimulationParameters>
-  <!-- Artery of FEDDLib's paper_amlodipine artery_dan example (FEDDLib
-       meshes/SPP2311/Artery_dan_SCI.mesh, converted with
-       ../tools/feddlib_mesh_to_svmp.py, see README): seven tissue regions as
-       domains 15-21 (DOMAIN_ID = FEDDLib volume flag), axially fixed ends, two
-       pin faces removing the rigid-body modes, the pressure ramped linearly to
-       85 mmHg (11.33237 kPa) on the inner wall over the first second, and zero
-       concentration on the inner and outer walls. It is the svMultiPhysics side
-       of FEDDLib's examples/arteries/artery_dan_cmm, which solves the same
-       problem (same mesh, Dirichlet node sets, element, parameters and load)
-       to compare the two codes and their FROSch preconditioners.
+  <!-- Artery (mesh Artery_dan_SCI, see README): seven tissue regions as
+       domains 15-21, axially fixed ends, two pin faces removing the
+       rigid-body modes, the pressure ramped linearly to 85 mmHg
+       (11.33237 kPa) on the inner wall over the first second, and zero
+       concentration on the inner and outer walls.
        PLACEHOLDER PARAMETERS: every region uses the hollow_cylinder
        constrained-mixture parameter set; region-specific CMM parameters are
-       still to be defined. The linear solver settings follow FEDDLib's
-       (GMRES without restart, tolerance 1e-5). -->
+       still to be defined. Linear solver: GMRES without restart, tolerance
+       1e-5, two-block FROSch preconditioner (see README). -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
   <Number_of_time_steps> 50 </Number_of_time_steps>
@@ -640,8 +635,8 @@
 
      <!-- Post-processing quantities of the Interface2/AceGen element (its
           Post-processing task, averaged to the nodes), by element name.
-          Those the FEDDLib artery examples export (SCirc, SAxial and SRadial
-          are the principal Cauchy stresses, largest to smallest): -->
+          SCirc, SAxial and SRadial are the principal Cauchy stresses, largest
+          to smallest: -->
      <MisesStress> true </MisesStress>
      <SCirc> true </SCirc>
      <SAxial> true </SAxial>
@@ -674,7 +669,7 @@
    <LS type="GMRES" >
       <Linear_algebra type="trilinos" >
          <Preconditioner> trilinos-frosch-block </Preconditioner>
-         <Configuration_file> frosch_block_feddlib.xml </Configuration_file>
+         <Configuration_file> frosch_block.xml </Configuration_file>
       </Linear_algebra>
       <Tolerance> 1e-5 </Tolerance>
       <Max_iterations> 1000 </Max_iterations>
@@ -693,8 +688,8 @@
       <Effective_direction> (0, 0, 1) </Effective_direction>
    </Add_BC>
 
-   <!-- FEDDLib vertex flags 13 (held in x and z) and 14 (held in y and z),
-        applied here to the bottom-face triangle containing each vertex. -->
+   <!-- Vertices held in x and z (pin_xz) and in y and z (pin_yz), applied
+        here to the bottom-face triangle containing each vertex. -->
    <Add_BC name="pin_xz" >
       <Type> Dir </Type>
       <Value> 0.0 </Value>
@@ -715,8 +710,7 @@
       <Follower_pressure_load> true </Follower_pressure_load>
    </Add_BC>
 
-   <!-- Zero concentration on the inner and outer walls (FEDDLib's inflow
-        condition, which switches to its inflow value only at t = 1e7). -->
+   <!-- Zero concentration on the inner and outer walls. -->
    <Add_BC name="inner" >
       <Type> Dir </Type>
       <Value> 0.0 </Value>

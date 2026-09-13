@@ -1495,7 +1495,7 @@ void read_ccb_active_cmm_gandr(dmnType &lDmn, DomainParameters *domain_params) {
     flag.intervals = segments_params.intervals;
     std::sort(flag.intervals.begin(), flag.intervals.end());
 
-    // As in FEDDLib, the active response must start at ActiveStartTime.
+    // The active response must start at ActiveStartTime.
     if (flag.name == "ActiveBool") {
       auto start = lDmn.ccb_active_cmm_gandr_params.find("ActiveStartTime");
       if (start != lDmn.ccb_active_cmm_gandr_params.end() &&

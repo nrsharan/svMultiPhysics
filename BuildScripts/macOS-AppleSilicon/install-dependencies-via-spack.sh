@@ -1,5 +1,5 @@
 #!/bin/bash
-# Third-party libraries for Trilinos 16.1.0 and FEDDLib on macOS / Apple
+# Third-party libraries for Trilinos 16.1.0 and svMultiPhysics on macOS / Apple
 # silicon (M4, macOS 26), as used for the local builds of 2026-09 (versions
 # from `spack find`). The spack checkout is ~/dev/spack.
 #

@@ -2,10 +2,8 @@
 <svMultiPhysicsFile version="0.1">
 
 <GeneralSimulationParameters>
-  <!-- Smoke test of the FEDDLib plaque mesh (meshes/SPP2311/
-       plaque_short_6_k.mesh, converted with ../tools/feddlib_mesh_to_svmp.py):
-       seven tissue regions as domains 15-21 (DOMAIN_ID = FEDDLib volume
-       flag). PLACEHOLDER PARAMETERS: every region uses the hollow_cylinder
+  <!-- Smoke test of a plaque mesh (plaque_short_6_k): seven tissue regions
+       as domains 15-21. PLACEHOLDER PARAMETERS: every region uses the hollow_cylinder
        parameter set; region-specific CMM parameters are still to be
        defined. Only checks that the mesh, domains and boundary conditions
        load and a few steps run.
@@ -639,8 +637,8 @@
 
      <!-- Post-processing quantities of the Interface2/AceGen element (its
           Post-processing task, averaged to the nodes), by element name.
-          Those the FEDDLib artery examples export (SCirc, SAxial and SRadial
-          are the principal Cauchy stresses, largest to smallest): -->
+          SCirc, SAxial and SRadial are the principal Cauchy stresses, largest
+          to smallest: -->
      <MisesStress> true </MisesStress>
      <SCirc> true </SCirc>
      <SAxial> true </SAxial>
@@ -691,8 +689,8 @@
       <Effective_direction> (0, 0, 1) </Effective_direction>
    </Add_BC>
 
-   <!-- FEDDLib vertex flags 13 (held in x and z) and 14 (held in y and z),
-        applied here to the bottom-face triangle containing each vertex. -->
+   <!-- Vertices held in x and z (pin_xz) and in y and z (pin_yz), applied
+        here to the bottom-face triangle containing each vertex. -->
    <Add_BC name="pin_xz" >
       <Type> Dir </Type>
       <Value> 0.0 </Value>

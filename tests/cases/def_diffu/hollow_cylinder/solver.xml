@@ -153,8 +153,8 @@
 
      <!-- Post-processing quantities of the Interface2/AceGen element (its
           Post-processing task, averaged to the nodes), by element name.
-          Those the FEDDLib artery examples export (SCirc, SAxial and SRadial
-          are the principal Cauchy stresses, largest to smallest): -->
+          SCirc, SAxial and SRadial are the principal Cauchy stresses, largest
+          to smallest: -->
      <MisesStress> true </MisesStress>
      <SCirc> true </SCirc>
      <SAxial> true </SAxial>

@@ -206,13 +206,12 @@ ElementOutput compute(const ElementInput& input);
 /// Converged history of one element (input.history) with the active
 /// stretches Lambdaa1/Lambdaa2 at every Gauss point replaced by the
 /// element's current Gauss-point fiber stretches (Interface2's
-/// getGaussPointStretches()), as FEDDLib does when the active response
-/// first switches on.
+/// getGaussPointStretches()), used when the active response first switches
+/// on.
 std::vector<double> history_with_active_stretches(const ElementInput& input);
 
 /// History returned by Interface2's initializeGrowthOrientationVectors() for
-/// the element state in 'input', as FEDDLib does when growth first switches
-/// on.
+/// the element state in 'input', used when growth first switches on.
 std::vector<double> history_with_growth_orientation(const ElementInput& input);
 
 /// Run the element's post-processing task (Interface2's postProcess()) for

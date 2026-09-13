@@ -5,11 +5,11 @@
 #                        trilinos-frosch preconditioner
 #   FROSCH=OFF           ~/opt/trilinos-16.1.0-int
 #
-# Compared with a Trilinos for FEDDLib (see FEDDLib's doc/sampleConfigureScripts):
+# Notes:
 #   - Tpetra global ordinal = int: svMultiPhysics's Trilinos interface
 #     (trilinos_impl.h) uses GO = int, and Tpetra supports only one global
-#     ordinal per build, so this cannot share an install with FEDDLib's
-#     long long build;
+#     ordinal per build, so this cannot share an install with a long long
+#     build;
 #   - only the packages svMultiPhysics uses (Tpetra, Belos, Ifpack2, MueLu,
 #     Amesos2/KLU2, NOX) and their dependencies;
 #   - FROSch: enable the subpackage ShyLU_DDFROSch (with Xpetra), not its
