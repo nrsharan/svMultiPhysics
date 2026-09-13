@@ -47,7 +47,10 @@ using NO = Tpetra::Map<>::node_type;
 /// Unless the file sets them, "Reuse: Coarse Basis" and "Reuse: Coarse Matrix
 /// Symbolic Factorization" are false, so a preconditioner recomputed for a new
 /// matrix (see Preconditioner) is the same as a new one. FROSch's default
-/// (true) keeps the coarse basis of the first matrix.
+/// (true) keeps the coarse basis of the first matrix. "Reuse: Symbolic
+/// Factorization" of the overlapping operator is false as well: FROSch's
+/// update of the subdomain matrices for a reused factorization is slower than
+/// a new factorization.
 Teuchos::RCP<Teuchos::ParameterList> parameters(const std::string& parameterFile, int nsd, int dof,
     bool haveCoordinates, bool block);
 

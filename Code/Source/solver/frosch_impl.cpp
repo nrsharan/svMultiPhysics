@@ -273,6 +273,18 @@ Teuchos::RCP<SinglePreconditioner> setup_single(const Teuchos::RCP<Tpetra_CrsMat
   return prec;
 }
 
+/// Sets up (initializes and computes) FROSch's one-level preconditioner: the
+/// overlapping subdomains grown from the owned rows, no coarse space
+/// (experimental, "svMultiPhysics: One Level" in the parameter list).
+Teuchos::RCP<FROSch::OneLevelPreconditioner<SC,LO,GO,NO>> setup_one_level(const Teuchos::RCP<Tpetra_CrsMatrix>& K,
+    const Teuchos::RCP<Teuchos::ParameterList>& params)
+{
+  auto prec = Teuchos::rcp(new FROSch::OneLevelPreconditioner<SC,LO,GO,NO>(xpetra_matrix(K), params));
+  prec->initialize(params->get("Overlap", 1), Teuchos::RCP<const XMap>());
+  prec->compute();
+  return prec;
+}
+
 /// Sets up (initializes and computes) the two-block preconditioner of Kb, the
 /// block-renumbered matrix: the first nsd dofs of every node and the others.
 Teuchos::RCP<BlockPreconditioner> setup_block(const Teuchos::RCP<Tpetra_CrsMatrix>& Kb,
@@ -394,6 +406,13 @@ Teuchos::RCP<Teuchos::ParameterList> parameters(const std::string& parameterFile
     coarse.get("Reuse: Coarse Basis", false);
     coarse.get("Reuse: Coarse Matrix Symbolic Factorization", false);
   }
+  // With a reused symbolic factorization, FROSch updates the overlapping
+  // subdomain matrices entry by entry (FROSch::ExtractLocalSubdomainMatrix_Compute),
+  // which takes longer than extracting and factorizing them anew (twice as
+  // long for the whole preconditioner setup of artery_dan, same iterations).
+  if (params->isType<std::string>("OverlappingOperator Type")) {
+    params->sublist(params->get<std::string>("OverlappingOperator Type")).get("Reuse: Symbolic Factorization", false);
+  }
   return params;
 }
 
@@ -478,6 +497,11 @@ Teuchos::RCP<Tpetra::Operator<SC,LO,GO,NO>> Preconditioner::update(
     state->frosch = prec;
     Teuchos::RCP<Tpetra_Operator> blockPrec = Teuchos::rcp(new FROSch::TpetraPreconditioner<SC,LO,GO,NO>(prec));
     state->op = Teuchos::rcp(new BlockRenumberedOperator(K->getDomainMap(), state->blockMap, blockPrec));
+  } else if (params->get("svMultiPhysics: One Level", false)) {
+    state->matrix = K;
+    auto prec = setup_one_level(K, params);
+    state->frosch = prec;
+    state->op = Teuchos::rcp(new FROSch::TpetraPreconditioner<SC,LO,GO,NO>(prec));
   } else {
     state->matrix = K;
     auto prec = setup_single(K, repeatedMap, nodeCoords, nsd, dof, state->dirichlet, params);
