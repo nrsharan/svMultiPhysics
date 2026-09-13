@@ -11,11 +11,12 @@
 # Runs a deformation-diffusion test case with a given preconditioner on a
 # scratch copy of tests/cases/def_diffu under RUN_ROOT (the cases refer to
 # each other's meshes), then summarizes the Newton and linear convergence.
-#   sbatch --ntasks=16 BuildScripts/Elysium-RUB/run-case-job.sh plaque_short trilinos-frosch [LS tolerance] [LS max iterations] [Linear_algebra elements]
+#   sbatch --ntasks=16 BuildScripts/Elysium-RUB/run-case-job.sh plaque_short trilinos-frosch [LS tolerance] [LS max iterations] [Linear_algebra elements] [environment]
 # Arguments: case (plaque_short), preconditioner (trilinos-frosch), and
 # optionally values replacing the case's linear solver <Tolerance> 1e-6 and
-# <Max_iterations> 100 (pass "" to keep them), and XML elements added to its
-# <Linear_algebra>, e.g. "<Diagonal_scaling> false </Diagonal_scaling>".
+# <Max_iterations> 100 (pass "" to keep them), XML elements added to its
+# <Linear_algebra>, e.g. "<Diagonal_scaling> false </Diagonal_scaling>", and
+# environment variables for the run, e.g. "SVMP_FROSCH_DROP_ZEROS=1".
 # Pass options as arguments, not with sbatch --export=ALL,...: that copies
 # the submitting shell's environment into the job, and a partial module setup
 # there (e.g. from a non-interactive ssh command) leaves the modules in
@@ -30,6 +31,7 @@ PREC=${2:-trilinos-frosch}
 LSTOL=${3:-}
 LSMAXIT=${4:-}
 LAOPTS=${5:-}
+RUN_ENV=${6:-}
 RUN_ROOT=${RUN_ROOT:-/lustre/nurans63/svmp-frosch/runs}
 NP=${SLURM_NTASKS:-1}
 
@@ -48,7 +50,10 @@ sed -i -E "s|<Preconditioner> *[a-z0-9-]+ *</Preconditioner>|<Preconditioner> $P
 [ -n "$LSMAXIT" ] && sed -i -E "s|<Max_iterations> *100 *</Max_iterations>|<Max_iterations> $LSMAXIT </Max_iterations>|" solver.xml
 [ -n "$LAOPTS" ] && sed -i -E "s|(<Preconditioner> *[a-z0-9-]+ *</Preconditioner>)|\1 $LAOPTS|" solver.xml
 LS=$(sed -n '/<LS /,/<\/LS>/p' solver.xml)
-echo "=== $CASE  prec=$PREC  np=$NP  LS tol=$(echo "$LS" | grep -o '<Tolerance>[^<]*' | sed 's/<Tolerance>//')  maxit=$(echo "$LS" | grep -o '<Max_iterations>[^<]*' | sed 's/<Max_iterations>//')  options: ${LAOPTS:-none}  node=$(hostname)  dir=$T/$CASE"
+echo "=== $CASE  prec=$PREC  np=$NP  LS tol=$(echo "$LS" | grep -o '<Tolerance>[^<]*' | sed 's/<Tolerance>//')  maxit=$(echo "$LS" | grep -o '<Max_iterations>[^<]*' | sed 's/<Max_iterations>//')  options: ${LAOPTS:-none}  environment: ${RUN_ENV:-none}  node=$(hostname)  dir=$T/$CASE"
+for assignment in $RUN_ENV; do
+  export "$assignment"
+done
 
 start=$(date +%s)
 srun --mpi=pmi2 $EXE solver.xml > run.log 2>&1

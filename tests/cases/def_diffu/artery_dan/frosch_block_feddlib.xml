@@ -1,0 +1,56 @@
+<!--
+  FROSch settings of FEDDLib's artery_dan_cmm (preconditionerParameters_Structure.xml) for trilinos-frosch-block: basis entries below 1e-5 dropped, coarse basis of the first matrix kept, no symbolic factorization reuse of the subdomain matrices. Unlike FEDDLib, the symbolic factorization of the coarse matrix is not reused (it made KLU2 fail in svMultiPhysics, see frosch_recycle_coarse_basis.xml).
+  Use with <Preconditioner> trilinos-frosch-block </Preconditioner> in <Linear_algebra>:
+    <Configuration_file> frosch_block_feddlib.xml </Configuration_file>
+-->
+<ParameterList name="FROSch">
+  <Parameter name="Overlap" type="int" value="1"/>
+  <Parameter name="TwoLevel" type="bool" value="true"/>
+  <Parameter name="Level Combination" type="string" value="Additive"/>
+  <Parameter name="OverlappingOperator Type" type="string" value="AlgebraicOverlappingOperator"/>
+  <Parameter name="CoarseOperator Type" type="string" value="RGDSWCoarseOperator"/>
+  <ParameterList name="AlgebraicOverlappingOperator">
+    <Parameter name="Reuse: Symbolic Factorization" type="bool" value="false"/>
+    <Parameter name="Combine Values in Overlap" type="string" value="Averaging"/>
+    <Parameter name="Adding Layers Strategy" type="string" value="CrsGraph"/>
+    <Parameter name="Verbosity" type="string" value="None"/>
+    <ParameterList name="Solver">
+      <Parameter name="SolverType" type="string" value="Amesos2"/>
+      <Parameter name="Solver" type="string" value="klu2"/>
+    </ParameterList>
+  </ParameterList>
+  <ParameterList name="RGDSWCoarseOperator">
+    <Parameter name="Phi: Dropping Threshold" type="double" value="1.0e-5"/>
+    <Parameter name="Reuse: Coarse Basis" type="bool" value="true"/>
+    <Parameter name="Reuse: Coarse Matrix" type="bool" value="false"/>
+    <Parameter name="Reuse: Extension Symbolic Factorization" type="bool" value="true"/>
+    <Parameter name="Reuse: Coarse Matrix Symbolic Factorization" type="bool" value="false"/>
+    <ParameterList name="Blocks">
+      <ParameterList name="1">
+        <Parameter name="Use For Coarse Space" type="bool" value="true"/>
+        <Parameter name="Option" type="string" value="2.2"/>
+        <Parameter name="Rotations" type="bool" value="true"/>
+        <Parameter name="Verbosity" type="string" value="None"/>
+      </ParameterList>
+      <ParameterList name="2">
+        <Parameter name="Use For Coarse Space" type="bool" value="true"/>
+        <Parameter name="Option" type="string" value="1"/>
+        <Parameter name="Rotations" type="bool" value="false"/>
+        <Parameter name="Verbosity" type="string" value="None"/>
+      </ParameterList>
+    </ParameterList>
+    <ParameterList name="ExtensionSolver">
+      <Parameter name="SolverType" type="string" value="Amesos2"/>
+      <Parameter name="Solver" type="string" value="klu2"/>
+    </ParameterList>
+    <ParameterList name="Distribution">
+      <Parameter name="Type" type="string" value="linear"/>
+      <Parameter name="GatheringSteps" type="int" value="1"/>
+      <Parameter name="NumProcs" type="int" value="1"/>
+    </ParameterList>
+    <ParameterList name="CoarseSolver">
+      <Parameter name="SolverType" type="string" value="Amesos2"/>
+      <Parameter name="Solver" type="string" value="klu2"/>
+    </ParameterList>
+  </ParameterList>
+</ParameterList>

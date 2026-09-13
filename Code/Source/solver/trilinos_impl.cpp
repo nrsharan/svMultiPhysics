@@ -529,6 +529,18 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
   // Construct Jacobi scaling vector which uses dirW to take the Dirichlet BC
   // into account
   //
+  // Debugging: with SVMP_TRILINOS_WRITE_SYSTEM=<prefix>, write the assembled
+  // system of the linear solve number SVMP_TRILINOS_WRITE_SYSTEM_SOLVE (1 if
+  // not set) before the Jacobi scaling (see writeSystem).
+  static int solveNumber = 0;
+  solveNumber++;
+  if (const char *prefix = std::getenv("SVMP_TRILINOS_WRITE_SYSTEM")) {
+    const char *solve = std::getenv("SVMP_TRILINOS_WRITE_SYSTEM_SOLVE");
+    if (solveNumber == (solve != nullptr ? std::atoi(solve) : 1)) {
+      writeSystem(trilinos_, dirW, prefix);
+    }
+  }
+
   Teuchos::RCP<Tpetra_Vector> diagonal = Teuchos::rcp(new Tpetra_Vector(trilinos_->Map));
   constructJacobiScaling(trilinos_, dirW, *diagonal);
 
@@ -675,6 +687,50 @@ void trilinos_solve_(const Teuchos::RCP<Trilinos> &trilinos_, double *x, const d
   trilinos_->K = Teuchos::null;
 
 } // trilinos_solve_
+
+// ----------------------------------------------------------------------------
+/**
+ * Write the assembled system (before the Jacobi scaling, so the Dirichlet
+ * rows are still the assembled ones) for debugging: <prefix>_K.mtx and
+ * <prefix>_F.mtx in MatrixMarket format (dof GID = node GID * dof + d, 1-based
+ * in the files), and per process <prefix>_dirichlet_<rank>.txt (GIDs of the
+ * Dirichlet dofs, dirW == 0) and <prefix>_coords_<rank>.txt (node GID and
+ * coordinates of the owned and ghost nodes).
+ */
+void writeSystem(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW, const std::string &prefix)
+{
+  using Writer = Tpetra::MatrixMarket::Writer<Tpetra_CrsMatrix>;
+  Writer::writeSparseFile(prefix + "_K.mtx", Teuchos::RCP<const Tpetra_CrsMatrix>(trilinos_->K), "K",
+      "svMultiPhysics matrix before the Jacobi scaling");
+  Writer::writeDenseFile(prefix + "_F.mtx", Teuchos::RCP<const Tpetra_MultiVector>(trilinos_->F), "F",
+      "svMultiPhysics right-hand side before the Jacobi scaling");
+
+  const std::string rank = std::to_string(trilinos_->comm->getRank());
+  std::ofstream dirichlet(prefix + "_dirichlet_" + rank + ".txt");
+  for (int i = 0; i < ghostAndLocalNodes; ++i) {
+    for (int j = 0; j < dof; ++j) {
+      if (dirW[i * dof + j] == 0.0) {
+        dirichlet << localToGlobalSorted[i] * dof + j << "\n";
+      }
+    }
+  }
+
+  #ifdef WITH_FROSCH
+  if (!trilinos_->nodeCoords.is_null()) {
+    std::ofstream coords(prefix + "_coords_" + rank + ".txt");
+    coords.precision(17);
+    const auto map = trilinos_->nodeCoords->getMap();
+    auto view = trilinos_->nodeCoords->getLocalViewHost(Tpetra::Access::ReadOnly);
+    for (size_t i = 0; i < view.extent(0); ++i) {
+      coords << map->getGlobalElement(static_cast<LO>(i));
+      for (size_t k = 0; k < view.extent(1); ++k) {
+        coords << " " << view(i, k);
+      }
+      coords << "\n";
+    }
+  }
+  #endif
+} // writeSystem
 
 // ----------------------------------------------------------------------------
 void setPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, int precondType,

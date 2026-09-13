@@ -4,6 +4,7 @@
 #include "frosch_impl.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <stdexcept>
 
 // FROSch's Amesos2 solver interface includes the umbrella "Amesos2.hpp", which
@@ -66,6 +67,50 @@ Teuchos::ArrayRCP<GO> dof_list(std::vector<GO> gids)
   Teuchos::ArrayRCP<GO> list(new GO[std::max<std::size_t>(gids.size(), 1)], 0, gids.size(), true);
   std::copy(gids.begin(), gids.end(), list.begin());
   return list;
+}
+
+/// K without its stored zeros, except on the diagonal. svMultiPhysics stores
+/// all couplings between the dofs of the nodes of an element, e.g. the
+/// displacement-concentration blocks of def_diffu, also where they are zero;
+/// they only make FROSch's factorizations denser.
+Teuchos::RCP<Tpetra_CrsMatrix> drop_zeros(const Tpetra_CrsMatrix& K)
+{
+  const auto rowMap = K.getRowMap();
+  const auto colMap = K.getColMap();
+  const std::size_t numRows = K.getLocalNumRows();
+  auto keep = [&](std::size_t i, LO localColumn, SC value) {
+    return value != 0.0 || colMap->getGlobalElement(localColumn) == rowMap->getGlobalElement(static_cast<LO>(i));
+  };
+
+  Teuchos::Array<std::size_t> numEntries(numRows, 0);
+  for (std::size_t i = 0; i < numRows; i++) {
+    typename Tpetra_CrsMatrix::local_inds_host_view_type columns;
+    typename Tpetra_CrsMatrix::values_host_view_type values;
+    K.getLocalRowView(static_cast<LO>(i), columns, values);
+    for (std::size_t j = 0; j < columns.extent(0); j++) {
+      numEntries[i] += keep(i, columns(j), values(j)) ? 1 : 0;
+    }
+  }
+
+  auto A = Teuchos::rcp(new Tpetra_CrsMatrix(rowMap, numEntries()));
+  Teuchos::Array<GO> keptColumns;
+  Teuchos::Array<SC> keptValues;
+  for (std::size_t i = 0; i < numRows; i++) {
+    typename Tpetra_CrsMatrix::local_inds_host_view_type columns;
+    typename Tpetra_CrsMatrix::values_host_view_type values;
+    K.getLocalRowView(static_cast<LO>(i), columns, values);
+    keptColumns.clear();
+    keptValues.clear();
+    for (std::size_t j = 0; j < columns.extent(0); j++) {
+      if (keep(i, columns(j), values(j))) {
+        keptColumns.push_back(colMap->getGlobalElement(columns(j)));
+        keptValues.push_back(values(j));
+      }
+    }
+    A->insertGlobalValues(rowMap->getGlobalElement(static_cast<LO>(i)), keptColumns(), keptValues());
+  }
+  A->fillComplete(K.getDomainMap(), K.getRangeMap());
+  return A;
 }
 
 /// GIDs of the elements of the process in a map, in local order.
@@ -147,28 +192,40 @@ Teuchos::RCP<Tpetra_CrsMatrix> block_matrix(const Tpetra_CrsMatrix& K, const Teu
 }
 
 /// Replaces the values of matrix, the matrix FROSch was set up with, by those
-/// of K, which has the same rows and column map as the matrix it was set up
-/// from. columns maps the local columns of K to those of matrix (empty: the
-/// same). Returns false if an entry of K is not in matrix.
-bool replace_values(const Tpetra_CrsMatrix& K, Tpetra_CrsMatrix& matrix, const std::vector<LO>& columns)
+/// of K, which has the same rows in the same local order (in the block
+/// numbering if number is given); entries of matrix that K does not have
+/// become zero. Returns false if K has an entry that matrix does not.
+/// Collective (fillComplete).
+bool replace_values(const Tpetra_CrsMatrix& K, Tpetra_CrsMatrix& matrix, const BlockNumbering* number)
 {
   const auto domainMap = matrix.getDomainMap();
   const auto rangeMap = matrix.getRangeMap();
+  const auto colMap = K.getColMap();
+  const auto matrixColMap = matrix.getColMap();
+  const LO INVALID_LO = Teuchos::OrdinalTraits<LO>::invalid();
   matrix.resumeFill();
+  matrix.setAllToScalar(0.0);
   bool found = true;
   Teuchos::Array<LO> matrixColumns;
+  Teuchos::Array<SC> matrixValues;
   for (std::size_t i = 0; i < K.getLocalNumRows(); i++) {
     typename Tpetra_CrsMatrix::local_inds_host_view_type localColumns;
     typename Tpetra_CrsMatrix::values_host_view_type values;
     K.getLocalRowView(static_cast<LO>(i), localColumns, values);
-    const std::size_t numEntries = localColumns.extent(0);
-    matrixColumns.resize(numEntries);
-    for (std::size_t j = 0; j < numEntries; j++) {
-      matrixColumns[j] = columns.empty() ? localColumns(j) : columns[localColumns(j)];
+    matrixColumns.clear();
+    matrixValues.clear();
+    for (std::size_t j = 0; j < localColumns.extent(0); j++) {
+      GO gid = colMap->getGlobalElement(localColumns(j));
+      const LO column = matrixColMap->getLocalElement(number != nullptr ? (*number)(gid) : gid);
+      if (column == INVALID_LO) {
+        found = false;
+        continue;
+      }
+      matrixColumns.push_back(column);
+      matrixValues.push_back(values(j));
     }
-    const LO numReplaced = matrix.replaceLocalValues(static_cast<LO>(i), matrixColumns(),
-        Teuchos::ArrayView<const SC>(values.data(), numEntries));
-    found = found && (numReplaced == static_cast<LO>(numEntries));
+    const LO numReplaced = matrix.replaceLocalValues(static_cast<LO>(i), matrixColumns(), matrixValues());
+    found = found && (numReplaced == static_cast<LO>(matrixColumns.size()));
   }
   matrix.fillComplete(domainMap, rangeMap);
   return found;
@@ -347,7 +404,6 @@ struct Preconditioner::State {
   int dof = 0;
   std::string parameterFile;
   std::vector<GO> rows;       ///< GIDs of the owned dofs (rows of K)
-  std::vector<GO> columns;    ///< GIDs of the column map of K
   std::vector<GO> repeated;   ///< GIDs of the repeated map
   std::vector<GO> dirichlet;  ///< sorted GIDs of the Dirichlet dofs
 
@@ -356,7 +412,7 @@ struct Preconditioner::State {
   /// for every matrix, and FROSch's setup refers to the maps it was set up with
   /// (e.g. a kept coarse basis, "Reuse: Coarse Basis").
   Teuchos::RCP<Tpetra_CrsMatrix> matrix;
-  std::vector<LO> blockColumns;                                    ///< block: local column of matrix for each of K
+  BlockNumbering number{0, 0, 0};                                  ///< block: the dof numbers of matrix
   Teuchos::RCP<const Tpetra_Map> blockMap;                         ///< block: row map of the renumbered K
   Teuchos::RCP<FROSch::OneLevelPreconditioner<SC,LO,GO,NO>> frosch;
   Teuchos::RCP<Tpetra_Operator> op;                                ///< the operator applied by Belos
@@ -366,33 +422,40 @@ Preconditioner::Preconditioner() = default;
 Preconditioner::~Preconditioner() = default;
 
 Teuchos::RCP<Tpetra::Operator<SC,LO,GO,NO>> Preconditioner::update(
-    const Teuchos::RCP<Tpetra::CrsMatrix<SC,LO,GO,NO>>& K,
+    const Teuchos::RCP<Tpetra::CrsMatrix<SC,LO,GO,NO>>& assembled,
     const Teuchos::RCP<const Tpetra::Map<LO,GO,NO>>& repeatedMap,
     const Teuchos::RCP<const Tpetra::MultiVector<SC,LO,GO,NO>>& nodeCoords,
     int nsd, int dof, std::vector<GO> dirichletDofs, const std::string& parameterFile, bool block)
 {
+  // Experimental: with SVMP_FROSCH_DROP_ZEROS set, FROSch gets the matrix
+  // without its stored zeros.
+  static const bool dropZeros = std::getenv("SVMP_FROSCH_DROP_ZEROS") != nullptr;
+  const Teuchos::RCP<Tpetra_CrsMatrix> K = dropZeros ? drop_zeros(*assembled) : assembled;
+
   std::sort(dirichletDofs.begin(), dirichletDofs.end());
   dirichletDofs.erase(std::unique(dirichletDofs.begin(), dirichletDofs.end()), dirichletDofs.end());
   std::vector<GO> rows = global_elements(*K->getRowMap());
-  std::vector<GO> columns = global_elements(*K->getColMap());
   std::vector<GO> repeated = global_elements(*repeatedMap);
+  const auto comm = K->getRowMap()->getComm();
 
-  // Only recompute if every process has the same dofs and matrix entries as
-  // before: FROSch's matrix then gets the values of K.
-  int same = (state_ && state_->block == block && state_->nsd == nsd && state_->dof == dof &&
-      state_->parameterFile == parameterFile && state_->rows == rows && state_->columns == columns &&
-      state_->repeated == repeated && state_->dirichlet == dirichletDofs) ? 1 : 0;
-  if (same) {
-    same = replace_values(*K, *state_->matrix, state_->blockColumns) ? 1 : 0;
-  }
+  // Only recompute if every process has the same dofs as before and FROSch's
+  // matrix has room for all entries of K on every process; it then gets the
+  // values of K. Both decisions are collective: replace_values communicates.
+  const int same = (state_ && state_->block == block && state_->nsd == nsd && state_->dof == dof &&
+      state_->parameterFile == parameterFile && state_->rows == rows && state_->repeated == repeated &&
+      state_->dirichlet == dirichletDofs) ? 1 : 0;
   int allSame = 0;
-  Teuchos::reduceAll(*K->getRowMap()->getComm(), Teuchos::REDUCE_MIN, same, Teuchos::outArg(allSame));
-
+  Teuchos::reduceAll(*comm, Teuchos::REDUCE_MIN, same, Teuchos::outArg(allSame));
   if (allSame) {
-    Teuchos::RCP<const XMatrix> xK = xpetra_matrix(state_->matrix);
-    state_->frosch->resetMatrix(xK);
-    state_->frosch->compute();
-    return state_->op;
+    const int found = replace_values(*K, *state_->matrix, block ? &state_->number : nullptr) ? 1 : 0;
+    int allFound = 0;
+    Teuchos::reduceAll(*comm, Teuchos::REDUCE_MIN, found, Teuchos::outArg(allFound));
+    if (allFound) {
+      Teuchos::RCP<const XMatrix> xK = xpetra_matrix(state_->matrix);
+      state_->frosch->resetMatrix(xK);
+      state_->frosch->compute();
+      return state_->op;
+    }
   }
 
   state_.reset();
@@ -402,22 +465,16 @@ Teuchos::RCP<Tpetra::Operator<SC,LO,GO,NO>> Preconditioner::update(
   state->dof = dof;
   state->parameterFile = parameterFile;
   state->rows = std::move(rows);
-  state->columns = std::move(columns);
   state->repeated = std::move(repeated);
   state->dirichlet = std::move(dirichletDofs);
 
   auto params = parameters(parameterFile, nsd, dof, !nodeCoords.is_null(), block);
   if (block) {
-    const BlockNumbering number = block_numbering(*K, nsd, dof);
-    state->blockMap = block_map(*K, number);
-    state->matrix = block_matrix(*K, state->blockMap, number);
-    const auto colMap = K->getColMap();
-    const auto blockColMap = state->matrix->getColMap();
-    state->blockColumns.resize(colMap->getLocalNumElements());
-    for (std::size_t j = 0; j < state->blockColumns.size(); j++) {
-      state->blockColumns[j] = blockColMap->getLocalElement(number(colMap->getGlobalElement(static_cast<LO>(j))));
-    }
-    auto prec = setup_block(state->matrix, repeatedMap, nodeCoords, nsd, dof, state->dirichlet, number, params);
+    state->number = block_numbering(*K, nsd, dof);
+    state->blockMap = block_map(*K, state->number);
+    state->matrix = block_matrix(*K, state->blockMap, state->number);
+    auto prec = setup_block(state->matrix, repeatedMap, nodeCoords, nsd, dof, state->dirichlet, state->number,
+        params);
     state->frosch = prec;
     Teuchos::RCP<Tpetra_Operator> blockPrec = Teuchos::rcp(new FROSch::TpetraPreconditioner<SC,LO,GO,NO>(prec));
     state->op = Teuchos::rcp(new BlockRenumberedOperator(K->getDomainMap(), state->blockMap, blockPrec));

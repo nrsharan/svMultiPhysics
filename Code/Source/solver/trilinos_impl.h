@@ -23,7 +23,10 @@
 #include "Teuchos_RCP.hpp"
 #include "Teuchos_DefaultComm.hpp"
 #include <Teuchos_Time.hpp>
-#include <Teuchos_TimeMonitor.hpp> 
+#include <Teuchos_TimeMonitor.hpp>
+#include <MatrixMarket_Tpetra.hpp>
+#include <cstdlib>
+#include <fstream> 
 
 #include "Kokkos_Core.hpp" 
 #include "Tpetra_KokkosCompat_ClassicNodeAPI_Wrapper.hpp"
@@ -388,6 +391,8 @@ void setAmesos2Preconditioner(const Teuchos::RCP<Trilinos> &trilinos_,
 void setFROSchPreconditioner(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW,
   Teuchos::RCP<Tpetra_Operator>& froschPrec, bool block);
 #endif
+
+void writeSystem(const Teuchos::RCP<Trilinos> &trilinos_, const double *dirW, const std::string &prefix);
 
 void checkDiagonalIsZero(const Teuchos::RCP<Trilinos> &trilinos_);
 void checkDiagonalIsZero(const Teuchos::RCP<Tpetra_CrsMatrix> &A);

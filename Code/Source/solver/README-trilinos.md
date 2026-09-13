@@ -327,6 +327,11 @@ where $v_i$ are boundary vectors (normal vectors scaled by resistance coefficien
 
 ## Debugging and Diagnostics
 
+### Writing the linear system
+With the environment variable `SVMP_TRILINOS_WRITE_SYSTEM=<prefix>`, the assembled system of the first linear solve (or of solve number `SVMP_TRILINOS_WRITE_SYSTEM_SOLVE`) is written before the Jacobi scaling: `<prefix>_K.mtx` and `<prefix>_F.mtx` (MatrixMarket, dof GID = node GID * dof + d) and, per process, the GIDs of the Dirichlet dofs (`<prefix>_dirichlet_<rank>.txt`) and the node coordinates (`<prefix>_coords_<rank>.txt`, with FROSch). `tests/cases/def_diffu/tools/compare_systems.py` compares such a system with FEDDLib's (written with `FEDD_WRITE_SYSTEM=<prefix>`), matching the nodes by their coordinates.
+
+The matrix stores all couplings between the degrees of freedom of the nodes of an element, also where they are zero (e.g. the displacement-concentration blocks of `deformation-diffusion` while the concentration is zero). With `SVMP_FROSCH_DROP_ZEROS` set (experimental), FROSch gets the matrix without its stored zeros, which makes its factorizations cheaper.
+
 ### Matrix/Vector Printing
 
 Functions available for debugging (write ASCII files):
