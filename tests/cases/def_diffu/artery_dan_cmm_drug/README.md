@@ -35,9 +35,16 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
 
 ## Other settings
 
-- Loads, time stepping and rate acceleration as in `../artery_dan_smc`
-  (pressure ramped to 85 mmHg over the first second, drug concentration 2 on
-  the walls from t = 860, 17958 steps to t = 1500).
+- Loads and rate acceleration as in `../artery_dan_smc` (pressure ramped to
+  85 mmHg over the first second, drug concentration 2 on the walls from
+  t = 860), and its time stepping except for the pressure ramp, which takes
+  steps of 0.005 instead of 0.02 (200 steps; 18108 steps to t = 1500). With
+  this parameter set the first quasi-static load step of 0.02 diverges
+  (Newton overshoots by +38 dB and does not recover); steps of 0.005 and
+  0.0025 converge (7, then 4-5 Newton iterations per step).
+- Time integration: `<Spectral_radius_of_infinite_time_step> 0.0`, i.e.
+  alpha_f = 1: the element and the loads are evaluated at t_{n+1}, as for
+  `../artery_dan_smc`.
 - Structure: quasi-static, `<Include_inertia> false </Include_inertia>`: the
   element's dynamic residual and mass matrix are left out; the parameters,
   Density included, are unchanged. With the inertia of Density 1 (kg/mm^3) the wall

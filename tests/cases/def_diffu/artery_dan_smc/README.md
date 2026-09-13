@@ -51,6 +51,11 @@ in all seven tissue regions, and a drug concentration applied on the walls.
   extrapolates it with the previous velocity, which at the jump of the time
   step from 0.02 to 0.5 after the pressure ramp (t = 1) started Newton far
   from the solution and diverged.
+- Time integration: `<Spectral_radius_of_infinite_time_step> 0.0`, i.e.
+  alpha_f = 1: the element and the loads are evaluated at t_{n+1}.
+  svMultiPhysics evaluates the element at the intermediate state
+  u_{n+alpha_f} but the pressure at t_{n+1}; without inertia, alpha_f < 1
+  would enforce equilibrium at the intermediate state.
 - Output: one XDMF/HDF5 pair (`result.xdmf`, `result.h5`) with the results
   of every 100th step: displacement, concentration and the element quantities
   MisesStress, SCirc, SAxial, SRadial, W, Growth, Stretch1, Stretch2, nC1,

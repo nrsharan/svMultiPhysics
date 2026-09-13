@@ -9,7 +9,9 @@
        2 on the inner and outer walls from t = 860.0. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
-  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.02 </Time_step_size> </Add_time_step_segment>
+  <!-- Pressure ramp in steps of 0.005 (FEDDLib: 0.02): with this parameter
+       set the first quasi-static load step of 0.02 diverges. -->
+  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.005 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 0.1 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 50. </Start_time> <Time_step_size> 0.15 </Time_step_size> </Add_time_step_segment>
@@ -21,7 +23,10 @@
   <Add_time_step_segment> <Start_time> 840. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 860. </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
   <Final_time> 1500 </Final_time>
-  <Spectral_radius_of_infinite_time_step> 0.50 </Spectral_radius_of_infinite_time_step>
+  <!-- Spectral radius 0: alpha_f = 1, so the element and the loads are
+       evaluated at t_{n+1} as in FEDDLib; without inertia, alpha_f < 1 would
+       enforce equilibrium at the intermediate state t_{n+alpha_f}. -->
+  <Spectral_radius_of_infinite_time_step> 0.0 </Spectral_radius_of_infinite_time_step>
 
   <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
   <Save_results_in_XDMF_format> true </Save_results_in_XDMF_format>
