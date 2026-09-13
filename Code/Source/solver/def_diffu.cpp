@@ -3,8 +3,9 @@
 
 // Assembly for EquationType::phys_def_diffu: a monolithic 4-dof/node (3
 // displacement + 1 concentration) equation whose element residual and
-// tangent are computed entirely by the Interface2/AceGen CCB
-// constrained-mixture active growth-and-remodeling element. There is no
+// tangent are computed entirely by one of the Interface2/AceGen CCB active
+// growth-and-remodeling elements (constrained-mixture or smooth-muscle; see
+// ace_gen_cmm_smc_element.h). There is no
 // inner Gauss-point loop: Interface2 integrates all Gauss points internally
 // in one compute() call per element.
 //
@@ -18,10 +19,11 @@
 // concentration dofs are then advanced by the Newmark relations in
 // Integrator::corrector(), like any other second-order equation.
 //
-// Domain-data flags with time segments (<Time_segments> in
-// <CCBActiveCMMGandR>) are set at the start of every time step by
+// Domain-data flags with time segments (<Time_segments> in the element's
+// parameter block) are set at the start of every time step by
 // advance_time_step(), which also runs the one-time initialization of a
-// flag's first switch-on.
+// flag's first switch-on. Parameters with a <Rate_acceleration> are scaled
+// in every element evaluation while the time is before its end time.
 
 #include "def_diffu.h"
 
@@ -74,8 +76,8 @@ void initialize_history(ComMod& com_mod, const mshType& lM, const int iEq)
     } else if (dmn.ccb_active_cmm_gandr_info.historyLengthPerElement != historyLengthPerElement) {
       throw std::runtime_error(
           "[construct_def_diffu] Mesh '" + lM.name + "' has multiple "
-          "CCBActiveCMMGandR domains with different history lengths "
-          "(e.g. different Integration_code values); this is not supported.");
+          "CCB element domains with different history lengths "
+          "(different elements or Integration_code values); this is not supported.");
     }
 
     if (historyLengthPerElement == 0) {
@@ -105,7 +107,19 @@ ace_gen_cmm_smc::ElementInput element_input(const ComMod& com_mod, const eqType&
   ace_gen_cmm_smc::ElementInput input;
   input.integrationCode = dmn.ccb_active_cmm_gandr_integration_code;
   input.subIterationTolerance = dmn.ccb_active_cmm_gandr_subiteration_tolerance;
+  input.model = dmn.ccb_active_cmm_gandr_info.model;
   input.domainData = dmn.ccb_active_cmm_gandr_domain_data;
+
+  // Parameters scaled before a given time (<Rate_acceleration>).
+  const auto& acceleration = dmn.ccb_active_cmm_gandr_rate_acceleration;
+  if (com_mod.time < acceleration.end_time && !time_segments::approx_equal(com_mod.time, acceleration.end_time)) {
+    for (int i : acceleration.multiplied) {
+      input.domainData[i] *= acceleration.factor;
+    }
+    for (int i : acceleration.divided) {
+      input.domainData[i] /= acceleration.factor;
+    }
+  }
   input.timeIncrement = com_mod.dt;
   input.time = com_mod.time;
   // [NOTE] Local (per-rank, per-mesh) element index, not a globally
@@ -241,8 +255,8 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
     } else if (dmn.ccb_active_cmm_gandr_info.historyLengthPerElement != historyLengthPerElement) {
       throw std::runtime_error(
           "[construct_def_diffu] Mesh '" + lM.name + "' has multiple "
-          "CCBActiveCMMGandR domains with different history lengths "
-          "(e.g. different Integration_code values); this is not supported.");
+          "CCB element domains with different history lengths "
+          "(different elements or Integration_code values); this is not supported.");
     }
 
     auto input = element_input(com_mod, eq, dmn, lM, e, Dg, Yg, Ag, meshHistory, historyLengthPerElement);
@@ -357,13 +371,30 @@ void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionState
 
 std::vector<ace_gen_cmm_smc::PostField> post_fields(const eqType& eq)
 {
+  const dmnType* first = nullptr;
+
   for (int iDmn = 0; iDmn < eq.nDmn; iDmn++) {
-    if (eq.dmn[iDmn].phys == consts::EquationType::phys_def_diffu) {
-      return ace_gen_cmm_smc::post_fields(eq.dmn[iDmn].ccb_active_cmm_gandr_info);
+    const auto& dmn = eq.dmn[iDmn];
+
+    if (dmn.phys != consts::EquationType::phys_def_diffu) {
+      continue;
+    }
+
+    if (first == nullptr) {
+      first = &dmn;
+    } else if (dmn.ccb_active_cmm_gandr_info.model != first->ccb_active_cmm_gandr_info.model) {
+      throw std::runtime_error("The domains of a deformation-diffusion equation use different elements (<" +
+          ace_gen_cmm_smc::xml_block_name(first->ccb_active_cmm_gandr_info.model) + "> and <" +
+          ace_gen_cmm_smc::xml_block_name(dmn.ccb_active_cmm_gandr_info.model) +
+          ">); all its domains must use the same element.");
     }
   }
 
-  return {};
+  if (first == nullptr) {
+    return {};
+  }
+
+  return ace_gen_cmm_smc::post_fields(first->ccb_active_cmm_gandr_info);
 }
 
 void nodal_post_data(const ComMod& com_mod, const mshType& lM, const SolutionStates& solutions, const int iEq,

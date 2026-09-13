@@ -2001,8 +2001,12 @@ ActiveStressParameters::get_parameters(const std::string &model_name) const {
 const std::string CCBActiveCMMGandRParameters::xml_element_name_ =
     "CCBActiveCMMGandR";
 
-CCBActiveCMMGandRParameters::CCBActiveCMMGandRParameters() {
-  set_xml_element_name(xml_element_name_);
+const std::string CCBActiveCMMGandRParameters::smc_xml_element_name_ =
+    "CCBActiveGandR";
+
+CCBActiveCMMGandRParameters::CCBActiveCMMGandRParameters(const std::string& element_name)
+    : element_name_(element_name) {
+  set_xml_element_name(element_name_);
 }
 
 void CCBActiveCMMGandRParameters::set_values(
@@ -2018,18 +2022,23 @@ void CCBActiveCMMGandRParameters::set_values(
       continue;
     }
 
+    if (name == "Rate_acceleration") {
+      set_rate_acceleration(item);
+      continue;
+    }
+
     const char* text = item->GetText();
 
     if (text == nullptr) {
       svmp::raise<svmp::ParseException>(
-          "The " + xml_element_name_ + " parameter '" + name + "' has no value.");
+          "The " + element_name_ + " parameter '" + name + "' has no value.");
     }
 
     try {
       parameters_[name] = std::stod(text);
     } catch (const std::exception&) {
       svmp::raise<svmp::ParseException>(
-          "The " + xml_element_name_ + " parameter '" + name + "' value '" +
+          "The " + element_name_ + " parameter '" + name + "' value '" +
           text + "' is not a number.");
     }
   }
@@ -2042,7 +2051,7 @@ void CCBActiveCMMGandRParameters::print_parameters() const {
     return;
   }
 
-  std::cout << "\n" << xml_element_name_ << "\n"
+  std::cout << "\n" << element_name_ << "\n"
             << "---------------------------------\n";
 
   for (const auto& [name, value] : parameters_) {
@@ -2056,6 +2065,11 @@ void CCBActiveCMMGandRParameters::print_parameters() const {
     }
     std::cout << std::endl;
   }
+
+  if (rate_acceleration_.defined) {
+    std::cout << "  Rate_acceleration: factor " << rate_acceleration_.factor << " until "
+              << rate_acceleration_.end_time << std::endl;
+  }
 }
 
 void CCBActiveCMMGandRParameters::set_time_segments(const tinyxml2::XMLElement* xml_elem) {
@@ -2066,7 +2080,7 @@ void CCBActiveCMMGandRParameters::set_time_segments(const tinyxml2::XMLElement* 
   const char* parameter = xml_elem->Attribute("parameter");
   if (parameter == nullptr) {
     svmp::raise<svmp::ParseException>(
-        "The " + xml_element_name_ + " Time_segments element requires a parameter=\"NAME\" attribute.");
+        "The " + element_name_ + " Time_segments element requires a parameter=\"NAME\" attribute.");
   }
   segments.parameter = parameter;
 
@@ -2113,6 +2127,81 @@ void CCBActiveCMMGandRParameters::set_time_segments(const tinyxml2::XMLElement* 
   }
 
   time_segments_.push_back(segments);
+}
+
+void CCBActiveCMMGandRParameters::set_rate_acceleration(const tinyxml2::XMLElement* xml_elem) {
+  using namespace tinyxml2;
+
+  if (rate_acceleration_.defined) {
+    svmp::raise<svmp::ParseException>("The " + element_name_ + " Rate_acceleration element is given more than once.");
+  }
+
+  // Parameter names separated by spaces or commas.
+  auto names = [](const char* text) {
+    std::vector<std::string> list;
+    std::string name;
+    for (const char* c = text; c != nullptr && *c != '\0'; c++) {
+      if (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r' || *c == ',') {
+        if (!name.empty()) {
+          list.push_back(name);
+          name.clear();
+        }
+      } else {
+        name += *c;
+      }
+    }
+    if (!name.empty()) {
+      list.push_back(name);
+    }
+    return list;
+  };
+
+  bool has_end_time = false;
+  bool has_factor = false;
+
+  for (const XMLElement* item = xml_elem->FirstChildElement(); item != nullptr;
+       item = item->NextSiblingElement()) {
+    const std::string name = item->Value();
+    const char* text = item->GetText();
+
+    if (name == "Multiplied_parameters") {
+      rate_acceleration_.multiplied = names(text);
+    } else if (name == "Divided_parameters") {
+      rate_acceleration_.divided = names(text);
+    } else if (name == "End_time" || name == "Factor") {
+      double value = 0.0;
+      try {
+        if (text == nullptr) {
+          throw std::invalid_argument("no value");
+        }
+        value = std::stod(text);
+      } catch (const std::exception&) {
+        svmp::raise<svmp::ParseException>("The " + element_name_ + " Rate_acceleration element <" + name +
+                                          "> requires a number.");
+      }
+      if (name == "End_time") {
+        rate_acceleration_.end_time = value;
+        has_end_time = true;
+      } else {
+        rate_acceleration_.factor = value;
+        has_factor = true;
+      }
+    } else {
+      svmp::raise<svmp::ParseException>("Unknown element '" + name + "' in the " + element_name_ +
+                                        " Rate_acceleration element; expected End_time, Factor, "
+                                        "Multiplied_parameters or Divided_parameters.");
+    }
+  }
+
+  if (!has_end_time || !has_factor) {
+    svmp::raise<svmp::ParseException>("The " + element_name_ + " Rate_acceleration element requires <End_time> and <Factor>.");
+  }
+
+  if (!(rate_acceleration_.factor > 0.0)) {
+    svmp::raise<svmp::ParseException>("The " + element_name_ + " Rate_acceleration <Factor> must be positive.");
+  }
+
+  rate_acceleration_.defined = true;
 }
 
 
@@ -2226,6 +2315,7 @@ void DomainParameters::print_parameters() {
   solid_viscosity.print_parameters();
 
   ccb_active_cmm_gandr.print_parameters();
+  ccb_active_gandr.print_parameters();
 }
 
 //------------
@@ -2281,6 +2371,11 @@ void DomainParameters::set_values(tinyxml2::XMLElement *domain_elem,
 
     if (name == CCBActiveCMMGandRParameters::xml_element_name_) {
       ccb_active_cmm_gandr.set_values(item);
+      item_found = true;
+    }
+
+    if (name == CCBActiveCMMGandRParameters::smc_xml_element_name_) {
+      ccb_active_gandr.set_values(item);
       item_found = true;
     }
 
@@ -2848,6 +2943,9 @@ void EquationParameters::set_values(tinyxml2::XMLElement *eq_elem,
 
     } else if (name == CCBActiveCMMGandRParameters::xml_element_name_) {
       domain->ccb_active_cmm_gandr.set_values(item);
+
+    } else if (name == CCBActiveCMMGandRParameters::smc_xml_element_name_) {
+      domain->ccb_active_gandr.set_values(item);
 
     } else if (name == LinearSolverParameters::xml_element_name_) {
       linear_solver.set_values(item);

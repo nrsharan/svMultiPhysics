@@ -411,7 +411,9 @@ class dmnType
 
     // Named material parameters for the Interface2/AceGen constrained-mixture
     // active growth-and-remodeling deformation-diffusion element (CCB model),
-    // as read from the <CCBActiveCMMGandR> XML block. Keys are exact
+    // as read from the element's XML block (<CCBActiveCMMGandR> for the
+    // constrained-mixture element, <CCBActiveGandR> for the smooth-muscle
+    // element; see ace_gen_cmm_smc::Model). Keys are exact
     // Interface2 domain-data names, e.g. "kEtaPlus". Only populated when
     // 'phys' is EquationType::phys_def_diffu.
     std::map<std::string,double> ccb_active_cmm_gandr_params;
@@ -449,6 +451,18 @@ class dmnType
       bool initialized = false;
     };
     std::vector<CcbFlagSegments> ccb_active_cmm_gandr_flag_segments;
+
+    // Domain-data parameters scaled while the time is before end_time
+    // (<Rate_acceleration> in the element's XML block): those at the
+    // positions 'multiplied' are multiplied, those at 'divided' divided by
+    // 'factor'; see def_diffu.cpp.
+    struct CcbRateAcceleration {
+      double end_time = 0.0;
+      double factor = 1.0;
+      std::vector<int> multiplied;
+      std::vector<int> divided;
+    };
+    CcbRateAcceleration ccb_active_cmm_gandr_rate_acceleration;
 };
 
 /// @brief Mesh adjacency (neighboring element for each element)

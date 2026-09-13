@@ -5,11 +5,23 @@
 #define ACE_GEN_CMM_SMC_ELEMENT_H
 
 // This header isolates every dependency on the external Interface2/AceGen
-// library behind a small, svMultiPhysics-native API. It wraps
-// AceGenInterface::DeformationDiffusionConstrainedMixtureModelSmoothMuscle
-// ActiveGrowthReorientationTetrahedra3D10 (the "CCB" constrained-mixture
-// active growth-and-remodeling element), which computes a complete 10-node
-// tet (30 displacement + 10 concentration DOF) element system in one call.
+// library behind a small, svMultiPhysics-native API. It wraps the two
+// Interface2 "CCB" active growth-and-remodeling elements, each of which
+// computes a complete 10-node tet (30 displacement + 10 concentration DOF)
+// element system in one call:
+//
+//   - AceGenInterface::DeformationDiffusionConstrainedMixtureModelSmoothMuscle
+//     ActiveGrowthReorientationTetrahedra3D10, the constrained-mixture element
+//     (Model::ConstrainedMixture, parameters in <CCBActiveCMMGandR>);
+//   - AceGenInterface::DeformationDiffusionSmoothMuscleActiveGrowth
+//     ReorientationTetrahedra3D10, the smooth-muscle element without the
+//     constrained mixture (Model::SmoothMuscle, parameters in
+//     <CCBActiveGandR>).
+//
+// Both elements have the same interface and the same local node numbering;
+// their parameters, history and post-processing quantities differ and are
+// queried from the element (get_element_info()), except for the initial
+// history, which is hardcoded per model (see the .cpp).
 //
 // svMultiPhysics is built with Interface2 support only when configured with
 // -DSV_USE_INTERFACE2=ON (see Code/Source/solver/CMakeLists.txt); the
@@ -35,13 +47,27 @@
 
 namespace ace_gen_cmm_smc {
 
+/// The Interface2 element a domain uses.
+enum class Model {
+  /// Constrained-mixture element, parameters in <CCBActiveCMMGandR>.
+  ConstrainedMixture,
+  /// Smooth-muscle element without the constrained mixture, parameters in
+  /// <CCBActiveGandR>.
+  SmoothMuscle
+};
+
+/// The XML element holding the parameters of 'model'.
+std::string xml_block_name(Model model);
+
 /// Element metadata queried once at setup time (independent of any
 /// particular element's nodal data).
 struct ElementInfo {
-  /// Number of history/internal variables persisted per element (currently
-  /// 39 per Gauss point for this AceGen kernel). Read at runtime rather
-  /// than hardcoded, so nothing here needs to change if the AceGen model is
-  /// regenerated with a different history layout.
+  /// The element.
+  Model model = Model::ConstrainedMixture;
+
+  /// Number of history/internal variables persisted per element (39 per
+  /// Gauss point for the constrained-mixture element, 34 for the
+  /// smooth-muscle element). Read at runtime rather than hardcoded.
   int historyLengthPerElement = 0;
 
   /// Number of Gauss points the element integrates internally.
@@ -75,31 +101,30 @@ struct PostField {
 /// the first name is not "Volume".
 std::vector<PostField> post_fields(const ElementInfo& info);
 
-/// Query element metadata for the given integration code (18 -> 4 Gauss
-/// points, 19 -> 5 Gauss points). Throws std::runtime_error if
+/// Query element metadata of 'model' for the given integration code (18 ->
+/// 4 Gauss points, 19 -> 5 Gauss points). Throws std::runtime_error if
 /// svMultiPhysics was not built with Interface2 support.
-ElementInfo get_element_info(int integrationCode);
+ElementInfo get_element_info(int integrationCode, Model model = Model::ConstrainedMixture);
 
 /// Build the ordered domain-data array compute() expects, by looking up
 /// each of 'info.domainDataNames' in 'named_params' (typically
-/// dmnType::ccb_active_cmm_gandr_params, populated from the
-/// <CCBActiveCMMGandR> XML block). Throws std::runtime_error naming the
-/// first missing parameter, rather than silently defaulting it, since a
-/// missing material parameter is a user input error that must not pass
-/// silently into a nonlinear solid mechanics solve.
+/// dmnType::ccb_active_cmm_gandr_params, populated from the element's XML
+/// block). Throws std::runtime_error naming the first missing parameter,
+/// rather than silently defaulting it, since a missing material parameter is
+/// a user input error that must not pass silently into a nonlinear solid
+/// mechanics solve.
 std::vector<double> build_domain_data(const ElementInfo& info,
                                        const std::map<std::string, double>& named_params);
 
 /// Build the initial (t=0, pre-solve) history vector for one element, by
-/// tiling the AceGen notebook's own per-Gauss-point initial-history vector
-/// (Mathematica "SingleGP") across info.numberOfGaussPoints. Interface2 has
-/// no API to query this, so it is hardcoded here (see the .cpp) from the
-/// notebook this kernel was generated from. Returns an empty vector if
+/// tiling the element's per-Gauss-point initial-history vector across
+/// info.numberOfGaussPoints. Interface2 has no API to query this, so it is
+/// hardcoded per model (see the .cpp). Returns an empty vector if
 /// info.historyLengthPerElement is 0. Throws std::runtime_error if
-/// info.historyLengthPerElement is nonzero but not exactly 39 *
-/// info.numberOfGaussPoints -- i.e. if the AceGen model's history layout
-/// has changed since this was hardcoded and this needs to be updated to
-/// match.
+/// info.historyLengthPerElement is nonzero but not the hardcoded length per
+/// Gauss point times info.numberOfGaussPoints -- i.e. if the AceGen model's
+/// history layout has changed since this was hardcoded and this needs to be
+/// updated to match.
 std::vector<double> initial_history(const ElementInfo& info);
 
 /// Compute the fully-initialized history for ONE specific element: starts
@@ -107,13 +132,12 @@ std::vector<double> initial_history(const ElementInfo& info);
 /// Interface2's Task 8 ("InitGrowth", exposed as
 /// initializeGrowthOrientationVectors()) using THIS element's own
 /// reference-configuration nodal positions to fill in the geometry-
-/// dependent fiber/growth-orientation tensor entries (a11-a23, ag11-ag33)
-/// that initial_history() leaves at 0 as a placeholder. This is
-/// necessarily per-element (not a single mesh-wide constant), since fiber/
-/// growth orientation varies spatially -- e.g. for a cylindrical geometry,
-/// the AceGen kernel derives circumferential/radial/axial directions from
-/// each Gauss point's (x,y) position, assuming (0,0) is the structure's
-/// centerline axis.
+/// dependent growth-orientation tensor entries that initial_history() leaves
+/// at 0 as a placeholder. This is necessarily per-element (not a single
+/// mesh-wide constant), since fiber/growth orientation varies spatially --
+/// e.g. for a cylindrical geometry, the AceGen kernel derives
+/// circumferential/radial/axial directions from each Gauss point's (x,y)
+/// position, assuming (0,0) is the structure's centerline axis.
 ///
 /// 'positions' follows the same (3,10) svMultiPhysics per-node convention
 /// as ElementInput::positions (reference-configuration coordinates).
@@ -139,6 +163,9 @@ struct ElementInput {
   ElementInput()
       : positions(3, 10), displacements(3, 10), accelerations(3, 10),
         concentrations(10), rates(10) {}
+
+  /// The element (ElementInfo::model of the domain).
+  Model model = Model::ConstrainedMixture;
 
   Array<double> positions;      // (3,10) reference-configuration coordinates
   Array<double> displacements;  // (3,10) current nodal displacements
@@ -204,10 +231,11 @@ struct ElementOutput {
 ElementOutput compute(const ElementInput& input);
 
 /// Converged history of one element (input.history) with the active
-/// stretches Lambdaa1/Lambdaa2 at every Gauss point replaced by the
-/// element's current Gauss-point fiber stretches (Interface2's
-/// getGaussPointStretches()), used when the active response first switches
-/// on.
+/// stretches at every Gauss point (Lambdaa1/Lambdaa2 of the
+/// constrained-mixture element, LambdaA1/LambdaA2 of the smooth-muscle
+/// element) replaced by the element's current Gauss-point fiber stretches
+/// (Interface2's getGaussPointStretches()), used when the active response
+/// first switches on.
 std::vector<double> history_with_active_stretches(const ElementInput& input);
 
 /// History returned by Interface2's initializeGrowthOrientationVectors() for

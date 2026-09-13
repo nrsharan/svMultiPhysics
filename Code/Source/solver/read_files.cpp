@@ -1438,11 +1438,24 @@ void read_active_stress(dmnType &lDmn, DomainParameters *domain_params) {
 
 /**
  * @brief Read the named material parameters and Interface2/AceGen call
- * settings for the CCB constrained-mixture active growth-and-remodeling
- * deformation-diffusion element.
+ * settings for the CCB active growth-and-remodeling deformation-diffusion
+ * elements: the constrained-mixture element (<CCBActiveCMMGandR>) or the
+ * smooth-muscle element (<CCBActiveGandR>).
  */
 void read_ccb_active_cmm_gandr(dmnType &lDmn, DomainParameters *domain_params) {
-  lDmn.ccb_active_cmm_gandr_params = domain_params->ccb_active_cmm_gandr.get_parameters();
+  const auto& cmm_params = domain_params->ccb_active_cmm_gandr;
+  const auto& smc_params = domain_params->ccb_active_gandr;
+
+  if (cmm_params.defined() && smc_params.defined()) {
+    throw std::runtime_error("[read_ccb_active_cmm_gandr] A deformation-diffusion domain has both <" +
+        cmm_params.element_name() + "> and <" + smc_params.element_name() + "> parameters; give one of them.");
+  }
+
+  const auto& block = smc_params.defined() ? smc_params : cmm_params;
+  const auto model = smc_params.defined() ? ace_gen_cmm_smc::Model::SmoothMuscle
+                                          : ace_gen_cmm_smc::Model::ConstrainedMixture;
+
+  lDmn.ccb_active_cmm_gandr_params = block.get_parameters();
   lDmn.ccb_active_cmm_gandr_integration_code =
       domain_params->ccb_active_cmm_gandr_integration_code.value();
   lDmn.ccb_active_cmm_gandr_subiteration_tolerance =
@@ -1455,16 +1468,16 @@ void read_ccb_active_cmm_gandr(dmnType &lDmn, DomainParameters *domain_params) {
   // (SV_USE_INTERFACE2), this throws immediately here at input-file-read
   // time rather than failing later during assembly.
   lDmn.ccb_active_cmm_gandr_info =
-      ace_gen_cmm_smc::get_element_info(lDmn.ccb_active_cmm_gandr_integration_code);
+      ace_gen_cmm_smc::get_element_info(lDmn.ccb_active_cmm_gandr_integration_code, model);
   lDmn.ccb_active_cmm_gandr_domain_data = ace_gen_cmm_smc::build_domain_data(
       lDmn.ccb_active_cmm_gandr_info, lDmn.ccb_active_cmm_gandr_params);
 
   // Time segments that switch domain-data flags on and off
-  // (<Time_segments> in <CCBActiveCMMGandR>; see def_diffu::advance_time_step()).
+  // (<Time_segments> in the element's block; see def_diffu::advance_time_step()).
   const auto& names = lDmn.ccb_active_cmm_gandr_info.domainDataNames;
   lDmn.ccb_active_cmm_gandr_flag_segments.clear();
 
-  for (const auto& segments_params : domain_params->ccb_active_cmm_gandr.get_time_segments()) {
+  for (const auto& segments_params : block.get_time_segments()) {
     dmnType::CcbFlagSegments flag;
     flag.name = segments_params.parameter;
 
@@ -1507,6 +1520,33 @@ void read_ccb_active_cmm_gandr(dmnType &lDmn, DomainParameters *domain_params) {
     }
 
     lDmn.ccb_active_cmm_gandr_flag_segments.push_back(flag);
+  }
+
+  // Parameters scaled before a given time (<Rate_acceleration>; see
+  // def_diffu.cpp).
+  const auto& acceleration_params = block.get_rate_acceleration();
+  auto& acceleration = lDmn.ccb_active_cmm_gandr_rate_acceleration;
+  acceleration = dmnType::CcbRateAcceleration();
+
+  if (acceleration_params.defined) {
+    acceleration.end_time = acceleration_params.end_time;
+    acceleration.factor = acceleration_params.factor;
+
+    auto index_of = [&](const std::string& name) {
+      auto it = std::find(names.begin(), names.end(), name);
+      if (it == names.end()) {
+        throw std::runtime_error("[read_ccb_active_cmm_gandr] Rate_acceleration parameter '" + name +
+            "' is not a domain-data parameter of the CCB element.");
+      }
+      return static_cast<int>(it - names.begin());
+    };
+
+    for (const auto& name : acceleration_params.multiplied) {
+      acceleration.multiplied.push_back(index_of(name));
+    }
+    for (const auto& name : acceleration_params.divided) {
+      acceleration.divided.push_back(index_of(name));
+    }
   }
 }
 
@@ -1681,8 +1721,8 @@ void read_domain(Simulation* simulation, EquationParameters* eq_params, eqType& 
        read_active_stress(lEq.dmn[iDmn], domain_params);
      }
 
-     // Read parameters for the CCB constrained-mixture active
-     // growth-and-remodeling deformation-diffusion element.
+     // Read parameters for the CCB active growth-and-remodeling
+     // deformation-diffusion elements.
      if (lEq.dmn[iDmn].phys == EquationType::phys_def_diffu) {
        read_ccb_active_cmm_gandr(lEq.dmn[iDmn], domain_params);
      }

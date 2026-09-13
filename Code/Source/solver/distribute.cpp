@@ -1459,8 +1459,9 @@ void dist_uris_msh(ComMod& com_mod, const CmMod& cm_mod, const cmType& cm, mshTy
 
 }
 
-/// @brief Distribute the CCB constrained-mixture element data of a
-/// deformation-diffusion domain, which is read on the master rank only.
+/// @brief Distribute the CCB element data of a deformation-diffusion domain
+/// (constrained-mixture or smooth-muscle element), which is read on the
+/// master rank only.
 static void dist_ccb_active_cmm_gandr(const CmMod& cm_mod, const cmType& cm, dmnType& dmn)
 {
   auto& params = dmn.ccb_active_cmm_gandr_params;
@@ -1484,12 +1485,16 @@ static void dist_ccb_active_cmm_gandr(const CmMod& cm_mod, const cmType& cm, dmn
   cm.bcast(cm_mod, &dmn.ccb_active_cmm_gandr_integration_code);
   cm.bcast(cm_mod, &dmn.ccb_active_cmm_gandr_subiteration_tolerance);
 
+  int model = static_cast<int>(dmn.ccb_active_cmm_gandr_info.model);
+  cm.bcast(cm_mod, &model);
+
   if (cm.slv(cm_mod)) {
     params.clear();
     for (int i = 0; i < nParams; i++) {
       params[names[i]] = values[i];
     }
-    dmn.ccb_active_cmm_gandr_info = ace_gen_cmm_smc::get_element_info(dmn.ccb_active_cmm_gandr_integration_code);
+    dmn.ccb_active_cmm_gandr_info = ace_gen_cmm_smc::get_element_info(dmn.ccb_active_cmm_gandr_integration_code,
+                                                                      static_cast<ace_gen_cmm_smc::Model>(model));
     dmn.ccb_active_cmm_gandr_domain_data = ace_gen_cmm_smc::build_domain_data(dmn.ccb_active_cmm_gandr_info, params);
   }
 
@@ -1512,6 +1517,21 @@ static void dist_ccb_active_cmm_gandr(const CmMod& cm_mod, const cmType& cm, dmn
     for (auto& interval : flag.intervals) {
       cm.bcast(cm_mod, &interval[0]);
       cm.bcast(cm_mod, &interval[1]);
+    }
+  }
+
+  auto& acceleration = dmn.ccb_active_cmm_gandr_rate_acceleration;
+  cm.bcast(cm_mod, &acceleration.end_time);
+  cm.bcast(cm_mod, &acceleration.factor);
+
+  for (auto* positions : {&acceleration.multiplied, &acceleration.divided}) {
+    int n = positions->size();
+    cm.bcast(cm_mod, &n);
+    if (cm.slv(cm_mod)) {
+      positions->resize(n);
+    }
+    for (auto& position : *positions) {
+      cm.bcast(cm_mod, &position);
     }
   }
 }

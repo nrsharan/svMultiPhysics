@@ -3,8 +3,10 @@
 
 #include "ace_gen_cmm_smc_element.h"
 
+#include <algorithm>
 #include <cctype>
 #include <stdexcept>
+#include <type_traits>
 
 #ifdef SV_HAVE_INTERFACE2
 #include "aceinterface.hpp"
@@ -14,8 +16,17 @@ namespace ace_gen_cmm_smc {
 
 namespace {
 
-/// Initial per-Gauss-point history state, from the AceGen/Mathematica
-/// notebook's own "SingleGP" vector (as supplied by the model author; see
+[[noreturn]] void no_interface2() {
+  throw std::runtime_error(
+      "The 'deformation-diffusion' equation requires svMultiPhysics to be "
+      "built with Interface2 support (configure with -DSV_USE_INTERFACE2=ON "
+      "and point CMAKE_PREFIX_PATH/Interface2_DIR at your Interface2 "
+      "install).");
+}
+
+/// Initial per-Gauss-point history state of the constrained-mixture element,
+/// from the AceGen/Mathematica notebook's own "SingleGP" vector (as supplied
+/// by the model author; see
 /// SMC_Coupled_Active_Growth_Reorientation_2026_09_04.nb). This has no
 /// Interface2 dependency -- it is pure hardcoded data, not queried from the
 /// library -- so it lives outside the SV_HAVE_INTERFACE2 guard below.
@@ -34,13 +45,8 @@ namespace {
 ///  31  nD2             32  Lambdaa1        33  Lambdaa2
 ///  34  k251            35  k252            36  LambdaBarP1
 ///  37  LambdaBarP2     38  RhoRSMC         39  nBar
-constexpr int kHistoryValuesPerGaussPoint = 39;
-
-/// 0-based positions of Lambdaa1 and Lambdaa2 in the per-Gauss-point history
-/// (entries 32 and 33 of the notebook order above).
-constexpr int kHistoryIndexLambdaa1 = 31;
-constexpr int kHistoryIndexLambdaa2 = 32;
-constexpr double kInitialHistorySingleGP[kHistoryValuesPerGaussPoint] = {
+constexpr int kCmmHistoryValuesPerGaussPoint = 39;
+constexpr double kCmmInitialHistorySingleGP[kCmmHistoryValuesPerGaussPoint] = {
     0.0,     0.0,     0.0,      // a11, a12, a13
     0.0,     0.0,     0.0,      // a21, a22, a23
     0.0,     0.0,     0.0,      // RhoRe, RhoRcoll, ag11
@@ -56,11 +62,88 @@ constexpr double kInitialHistorySingleGP[kHistoryValuesPerGaussPoint] = {
     1.0,     0.0,     0.0,      // LambdaBarP2, RhoRSMC, nBar
 };
 
+/// Initial per-Gauss-point history state of the smooth-muscle element, as
+/// in the model author's element test (Interface2 test/smc_parameters.hpp).
+/// Its fiber (a11-a23) and growth-orientation (Ag11-Ag33) entries are
+/// placeholders: the element sets the fibers itself on its first step, and
+/// the growth orientation is set when growth first switches on.
+///
+/// Order (0-based):
+///   0  LambdaBarC1      1  LambdaBarC2      2  nA1       3  nA2
+///   4  nB1              5  nB2              6  nC1       7  nC2
+///   8  nD1              9  nD2             10  LambdaA1 11  LambdaA2
+///  12  k251            13  k252            14  LambdaBarP1
+///  15  LambdaBarP2     16  Theta1          17  Theta2   18  Theta3
+///  19-27  Ag11 ... Ag33                    28-33  a11, a12, a13, a21, a22, a23
+constexpr int kSmcHistoryValuesPerGaussPoint = 34;
+constexpr double kSmcInitialHistorySingleGP[kSmcHistoryValuesPerGaussPoint] = {
+    1.0,     1.0,                                     // LambdaBarC1, LambdaBarC2
+    1.0,     1.0,     0.0, 0.0,                       // nA1, nA2, nB1, nB2
+    0.0,     0.0,     0.0, 0.0,                       // nC1, nC2, nD1, nD2
+    1.0,     1.0,                                     // LambdaA1, LambdaA2
+    1.82758, 1.82758,                                 // k251, k252
+    1.0,     1.0,                                     // LambdaBarP1, LambdaBarP2
+    1.0,     1.0,     1.0,                            // Theta1, Theta2, Theta3
+    0.0,     0.0,     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  // Ag11 ... Ag33
+    0.0,     0.0,     0.0, 0.0, 0.0, 0.0,             // a11, a12, a13, a21, a22, a23
+};
+
+/// Per-Gauss-point history layout of an element: its initial values and the
+/// 0-based positions of the two active stretches.
+struct HistoryLayout {
+  const double* initial;
+  int valuesPerGaussPoint;
+  int activeStretch1;
+  int activeStretch2;
+};
+
+/// The smooth-muscle element's dynamic-residual task (Rdyn) reads the density
+/// from domain-data entry 61, beyond its 60 entries, while its mass matrix Mu
+/// uses entry 57 ("Density"; a known issue of the generated element, see
+/// Interface2's test/README.md). The domain data passed to this element are
+/// therefore extended to 62 entries with the density at 61, so that Rdyn =
+/// Mu*a and nothing is read out of bounds.
+constexpr int kSmcDensityIndex = 57;
+constexpr int kSmcRdynDensityIndex = 61;
+
+/// The domain data as passed to the element of 'model' (see above).
+std::vector<double> element_domain_data(Model model, const std::vector<double>& domainData) {
+  std::vector<double> data = domainData;
+  if (model == Model::SmoothMuscle && data.size() > static_cast<std::size_t>(kSmcDensityIndex)) {
+    data.resize(std::max(data.size(), static_cast<std::size_t>(kSmcRdynDensityIndex + 1)), 0.0);
+    data[kSmcRdynDensityIndex] = domainData[kSmcDensityIndex];
+  }
+  return data;
+}
+
+HistoryLayout history_layout(Model model) {
+  if (model == Model::SmoothMuscle) {
+    return {kSmcInitialHistorySingleGP, kSmcHistoryValuesPerGaussPoint, 10, 11};
+  }
+  // Lambdaa1, Lambdaa2: entries 32 and 33 of the notebook order.
+  return {kCmmInitialHistorySingleGP, kCmmHistoryValuesPerGaussPoint, 31, 32};
+}
+
 #ifdef SV_HAVE_INTERFACE2
 
-using AceGenInterface::DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10;
+using CmmElement =
+    AceGenInterface::DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10;
+using SmcElement = AceGenInterface::DeformationDiffusionSmoothMuscleActiveGrowthReorientationTetrahedra3D10;
 
-/// Interface2's raw domain-data names for this element mix two
+/// Call 'f' with a null pointer to the element class of 'model'; the pointer
+/// type selects the class (both have the same interface).
+template <class F>
+decltype(auto) with_element(Model model, F&& f) {
+  if (model == Model::SmoothMuscle) {
+    return f(static_cast<SmcElement*>(nullptr));
+  }
+  return f(static_cast<CmmElement*>(nullptr));
+}
+
+template <class Pointer>
+using ElementOf = std::remove_pointer_t<Pointer>;
+
+/// Interface2's raw domain-data names for these elements mix two
 /// inconsistent conventions (discovered by inspecting
 /// SMC_Interface_Active_Growth_CMM_Reorientation.c's 'gdcs' table):
 ///
@@ -98,9 +181,10 @@ std::string clean_domain_data_name(const std::string& raw) {
   return candidate;
 }
 
-/// Maps AceGen's local tet10 node numbering (the element's 'rnodes' table in
-/// SMC_Interface_Active_Growth_CMM_Reorientation.c) to svMultiPhysics's
-/// local numbering as returned by mshType::IEN(a,e): svMultiPhysics node
+/// Maps AceGen's local tet10 node numbering (the elements' 'rnodes' table,
+/// the same in SMC_Interface_Active_Growth_CMM_Reorientation.c and
+/// SMC_Interface_Active_Growth_Reorientation.c) to svMultiPhysics's local
+/// numbering as returned by mshType::IEN(a,e): svMultiPhysics node
 /// kAceGenNodeToVtkNode[a] is AceGen's node 'a'. svMultiPhysics's mesh
 /// loader reorders the element nodes (its IEN corners give a negative
 /// signed volume for gmsh tet10 meshes), so the table is expressed in IEN
@@ -126,42 +210,84 @@ void flatten_positions(const Array<double>& src, double* dst) {
   }
 }
 
+/// Interface2 input arrays for one element, in AceGen's node order.
+struct RawElementInput {
+  double positions[30];
+  double displacements[30];
+  double accelerations[30];
+  double concentrations[10];
+  double rates[10];
+  std::vector<double> domainData;
+  std::vector<double> history;
+};
+
+RawElementInput raw_element_input(const ElementInput& input) {
+  RawElementInput raw;
+  flatten_positions(input.positions, raw.positions);
+  flatten_positions(input.displacements, raw.displacements);
+  flatten_positions(input.accelerations, raw.accelerations);
+  for (int a = 0; a < 10; a++) {
+    int v = kAceGenNodeToVtkNode[a];
+    raw.concentrations[a] = input.concentrations(v);
+    raw.rates[a] = input.rates(v);
+  }
+  // Interface2 takes non-const pointers; copies keep the caller's storage
+  // from being aliased.
+  raw.domainData = element_domain_data(input.model, input.domainData);
+  raw.history = input.history;
+  return raw;
+}
+
 #endif // SV_HAVE_INTERFACE2
 
 } // namespace
 
-ElementInfo get_element_info(int integrationCode) {
+std::string xml_block_name(Model model) {
+  return model == Model::SmoothMuscle ? "CCBActiveGandR" : "CCBActiveCMMGandR";
+}
+
+ElementInfo get_element_info(int integrationCode, Model model) {
 #ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error(
-      "The 'deformation-diffusion' equation requires svMultiPhysics to be "
-      "built with Interface2 support (configure with -DSV_USE_INTERFACE2=ON "
-      "and point CMAKE_PREFIX_PATH/Interface2_DIR at your Interface2 "
-      "install).");
+  no_interface2();
 #else
   ElementInfo info;
+  info.model = model;
 
-  // The (integrationCode) constructor is for querying history length and
-  // Gauss point count only (see aceinterface.hpp).
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      sizing_elem(integrationCode);
-  info.historyLengthPerElement = sizing_elem.getHistoryLength();
-  info.numberOfGaussPoints = sizing_elem.getNumberOfGaussPoints();
+  with_element(model, [&](auto* tag) {
+    using Element = ElementOf<decltype(tag)>;
 
-  // The no-arg constructor is for querying domain-data/post-data names and
-  // counts only.
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      naming_elem;
-  int numberOfDomainData = naming_elem.getNumberOfDomainData();
-  char** rawNames = naming_elem.getDomainDataNames();
+    // The (integrationCode) constructor is for querying history length and
+    // Gauss point count only (see aceinterface.hpp).
+    Element sizing_elem(integrationCode);
+    info.historyLengthPerElement = sizing_elem.getHistoryLength();
+    info.numberOfGaussPoints = sizing_elem.getNumberOfGaussPoints();
 
-  info.domainDataNames.resize(numberOfDomainData);
-  for (int i = 0; i < numberOfDomainData; i++) {
-    info.domainDataNames[i] = clean_domain_data_name(std::string(rawNames[i]));
+    // The no-arg constructor is for querying domain-data/post-data names and
+    // counts only.
+    Element naming_elem;
+    int numberOfDomainData = naming_elem.getNumberOfDomainData();
+    char** rawNames = naming_elem.getDomainDataNames();
+
+    info.domainDataNames.resize(numberOfDomainData);
+    for (int i = 0; i < numberOfDomainData; i++) {
+      info.domainDataNames[i] = clean_domain_data_name(std::string(rawNames[i]));
+    }
+
+    // The post-processing names are plain identifiers ("Volume", "Sxx", ...).
+    char** rawPostNames = naming_elem.getPostDataNames();
+    info.postDataNames.assign(rawPostNames, rawPostNames + naming_elem.getNumberOfPostData());
+    return 0;
+  });
+
+  // The density workaround of element_domain_data() assumes this layout.
+  if (model == Model::SmoothMuscle &&
+      (info.domainDataNames.size() != kSmcRdynDensityIndex - 1 ||
+       info.domainDataNames[kSmcDensityIndex] != "Density")) {
+    throw std::runtime_error(
+        "ace_gen_cmm_smc::get_element_info: the smooth-muscle element no longer has 60 domain-data "
+        "parameters with Density at position 57; the density workaround for its dynamic residual needs "
+        "to be updated.");
   }
-
-  // The post-processing names are plain identifiers ("Volume", "Sxx", ...).
-  char** rawPostNames = naming_elem.getPostDataNames();
-  info.postDataNames.assign(rawPostNames, rawPostNames + naming_elem.getNumberOfPostData());
 
   return info;
 #endif
@@ -221,16 +347,17 @@ std::vector<PostField> post_fields(const ElementInfo& info) {
 std::vector<double> build_domain_data(const ElementInfo& info,
                                        const std::map<std::string, double>& named_params) {
   std::vector<double> domainData(info.domainDataNames.size());
+  const std::string block = xml_block_name(info.model);
 
   for (std::size_t i = 0; i < info.domainDataNames.size(); i++) {
     const auto& name = info.domainDataNames[i];
     auto it = named_params.find(name);
     if (it == named_params.end()) {
       throw std::runtime_error(
-          "The 'deformation-diffusion' equation's CCBActiveCMMGandR "
-          "material parameters are missing required parameter '" + name +
+          "The 'deformation-diffusion' equation's " + block +
+          " material parameters are missing required parameter '" + name +
           "'. Add a <" + name + "> ... </" + name +
-          "> element under <CCBActiveCMMGandR> in the Domain's XML.");
+          "> element under <" + block + "> in the Domain's XML.");
     }
     domainData[i] = it->second;
   }
@@ -243,11 +370,13 @@ std::vector<double> initial_history(const ElementInfo& info) {
     return {};
   }
 
-  if (info.historyLengthPerElement != kHistoryValuesPerGaussPoint * info.numberOfGaussPoints) {
+  const HistoryLayout layout = history_layout(info.model);
+
+  if (info.historyLengthPerElement != layout.valuesPerGaussPoint * info.numberOfGaussPoints) {
     throw std::runtime_error(
         "ace_gen_cmm_smc::initial_history: historyLengthPerElement (" +
         std::to_string(info.historyLengthPerElement) + ") is not " +
-        std::to_string(kHistoryValuesPerGaussPoint) + " * numberOfGaussPoints (" +
+        std::to_string(layout.valuesPerGaussPoint) + " * numberOfGaussPoints (" +
         std::to_string(info.numberOfGaussPoints) + "). The hardcoded initial "
         "history seed no longer matches this AceGen kernel's history layout "
         "and needs to be updated.");
@@ -256,7 +385,7 @@ std::vector<double> initial_history(const ElementInfo& info) {
   std::vector<double> seed;
   seed.reserve(info.historyLengthPerElement);
   for (int g = 0; g < info.numberOfGaussPoints; g++) {
-    seed.insert(seed.end(), std::begin(kInitialHistorySingleGP), std::end(kInitialHistorySingleGP));
+    seed.insert(seed.end(), layout.initial, layout.initial + layout.valuesPerGaussPoint);
   }
   return seed;
 }
@@ -270,11 +399,7 @@ std::vector<double> initialize_element_history(const ElementInfo& info,
                                                 int integrationCode,
                                                 int elementID) {
 #ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error(
-      "The 'deformation-diffusion' equation requires svMultiPhysics to be "
-      "built with Interface2 support (configure with -DSV_USE_INTERFACE2=ON "
-      "and point CMAKE_PREFIX_PATH/Interface2_DIR at your Interface2 "
-      "install).");
+  no_interface2();
 #else
   if (info.historyLengthPerElement == 0) {
     return {};
@@ -288,170 +413,120 @@ std::vector<double> initialize_element_history(const ElementInfo& info,
   double accelerations[30] = {0.0};
   double rates[10] = {0.0};
 
-  std::vector<double> domainDataCopy = domainData;
+  std::vector<double> domainDataCopy = element_domain_data(info.model, domainData);
   // Placeholder history (see initial_history()) -- Task 8 only overwrites
   // the geometry-dependent orientation entries; everything else passes
   // through unchanged, so this baseline must already hold the correct
   // non-orientation initial values (e.g. LambdaBarC1=1, k251=1.82758, ...).
   std::vector<double> historyPlaceholder = initial_history(info);
 
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      elem(positionsFlat, displacements, concentrations, accelerations, rates,
-           domainDataCopy.data(), historyPlaceholder.data(), subIterationTolerance,
-           timeIncrement, time, integrationCode, elementID);
-
-  return elem.initializeGrowthOrientationVectors();
+  return with_element(info.model, [&](auto* tag) {
+    using Element = ElementOf<decltype(tag)>;
+    Element elem(positionsFlat, displacements, concentrations, accelerations, rates,
+                 domainDataCopy.data(), historyPlaceholder.data(), subIterationTolerance,
+                 timeIncrement, time, integrationCode, elementID);
+    return elem.initializeGrowthOrientationVectors();
+  });
 #endif
 }
 
 ElementOutput compute(const ElementInput& input) {
 #ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error(
-      "The 'deformation-diffusion' equation requires svMultiPhysics to be "
-      "built with Interface2 support (configure with -DSV_USE_INTERFACE2=ON "
-      "and point CMAKE_PREFIX_PATH/Interface2_DIR at your Interface2 "
-      "install).");
+  no_interface2();
 #else
-  double positions[30];
-  double displacements[30];
-  double concentrations[10];
-  double accelerations[30];
-  double rates[10];
+  RawElementInput raw = raw_element_input(input);
 
-  flatten_positions(input.positions, positions);
-  flatten_positions(input.displacements, displacements);
-  flatten_positions(input.accelerations, accelerations);
-  for (int a = 0; a < 10; a++) {
-    int v = kAceGenNodeToVtkNode[a];
-    concentrations[a] = input.concentrations(v);
-    rates[a] = input.rates(v);
-  }
+  return with_element(input.model, [&](auto* tag) {
+    using Element = ElementOf<decltype(tag)>;
+    Element elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
+                 raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
+                 input.timeIncrement, input.time, input.integrationCode, input.elementID);
 
-  // Interface2 leaves 'domainData'/'history' non-const void*-like raw
-  // pointers; copy locally so we can safely pass mutable pointers without
-  // aliasing the caller's storage.
-  std::vector<double> domainData = input.domainData;
-  std::vector<double> history = input.history;
-
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      elem(positions, displacements, concentrations, accelerations, rates,
-           domainData.data(), history.data(), input.subIterationTolerance,
-           input.timeIncrement, input.time, input.integrationCode,
-           input.elementID);
-
-  int errorCode = elem.compute(/*computeTangent=*/true);
-  if (errorCode != 0) {
-    throw std::runtime_error(
-        "The Interface2/AceGen CCB constrained-mixture element failed to "
-        "converge (element " + std::to_string(input.elementID) +
-        ", error code " + std::to_string(errorCode) + ").");
-  }
-
-  double* Rint = elem.getResiduumVectorRint(); // 30
-  double* Rdyn = elem.getResiduumVectorRdyn(); // 30 -- real inertia residual (rho*a)
-  double* Rc = elem.getResiduumVectorRc();     // 10
-  double** Kuu = elem.getStiffnessMatrixKuu(); // 30x30
-  double** Kuc = elem.getStiffnessMatrixKuc(); // 30x10
-  double** Kcu = elem.getStiffnessMatrixKcu(); // 10x30
-  double** Kcc = elem.getStiffnessMatrixKcc(); // 10x10
-  double** Mu = elem.getMassMatrixMu();        // 30x30 -- real mass matrix (density baked in)
-  double** Mc = elem.getMassMatrixMc();        // 10x10
-  double* historyUpdated = elem.getHistoryUpdated();
-
-  ElementOutput out;
-
-  constexpr int dof = 4;
-
-  // All indices below are AceGen's own local node numbering; every write
-  // into 'out' remaps through kAceGenNodeToVtkNode so 'out' ends up indexed
-  // in svMultiPhysics's own (VTK) local node numbering, matching 'ptr' in
-  // def_diffu.cpp.
-  for (int a = 0; a < 10; a++) {
-    int va = kAceGenNodeToVtkNode[a];
-    for (int i = 0; i < 3; i++) {
-      out.lR(i, va) = Rint[3 * a + i];
-      out.lRdyn(i, va) = Rdyn[3 * a + i];
+    int errorCode = elem.compute(/*computeTangent=*/true);
+    if (errorCode != 0) {
+      throw std::runtime_error(
+          "The Interface2/AceGen " + xml_block_name(input.model) + " element failed to "
+          "converge (element " + std::to_string(input.elementID) +
+          ", error code " + std::to_string(errorCode) + ").");
     }
-    out.lR(3, va) = Rc[a];
-  }
 
-  for (int a = 0; a < 10; a++) {
-    int va = kAceGenNodeToVtkNode[a];
-    for (int b = 0; b < 10; b++) {
-      int vb = kAceGenNodeToVtkNode[b];
+    double* Rint = elem.getResiduumVectorRint(); // 30
+    double* Rdyn = elem.getResiduumVectorRdyn(); // 30 -- real inertia residual (rho*a)
+    double* Rc = elem.getResiduumVectorRc();     // 10
+    double** Kuu = elem.getStiffnessMatrixKuu(); // 30x30
+    double** Kuc = elem.getStiffnessMatrixKuc(); // 30x10
+    double** Kcu = elem.getStiffnessMatrixKcu(); // 10x30
+    double** Kcc = elem.getStiffnessMatrixKcc(); // 10x10
+    double** Mu = elem.getMassMatrixMu();        // 30x30 -- real mass matrix (density baked in)
+    double** Mc = elem.getMassMatrixMc();        // 10x10
+    double* historyUpdated = elem.getHistoryUpdated();
+
+    ElementOutput out;
+
+    constexpr int dof = 4;
+
+    // All indices below are AceGen's own local node numbering; every write
+    // into 'out' remaps through kAceGenNodeToVtkNode so 'out' ends up indexed
+    // in svMultiPhysics's own (VTK) local node numbering, matching 'ptr' in
+    // def_diffu.cpp.
+    for (int a = 0; a < 10; a++) {
+      int va = kAceGenNodeToVtkNode[a];
       for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-          out.lKState(i * dof + j, va, vb) = Kuu[3 * a + i][3 * b + j];
-          out.lKMass(i * dof + j, va, vb) = Mu[3 * a + i][3 * b + j];
-        }
-        out.lKState(i * dof + 3, va, vb) = Kuc[3 * a + i][b];
-        out.lKState(3 * dof + i, va, vb) = Kcu[a][3 * b + i];
+        out.lR(i, va) = Rint[3 * a + i];
+        out.lRdyn(i, va) = Rdyn[3 * a + i];
       }
-      out.lKState(3 * dof + 3, va, vb) = Kcc[a][b];
-      out.lKRate(3 * dof + 3, va, vb) = Mc[a][b];
+      out.lR(3, va) = Rc[a];
     }
-  }
 
-  out.historyUpdated.assign(historyUpdated,
-                             historyUpdated + input.history.size());
+    for (int a = 0; a < 10; a++) {
+      int va = kAceGenNodeToVtkNode[a];
+      for (int b = 0; b < 10; b++) {
+        int vb = kAceGenNodeToVtkNode[b];
+        for (int i = 0; i < 3; i++) {
+          for (int j = 0; j < 3; j++) {
+            out.lKState(i * dof + j, va, vb) = Kuu[3 * a + i][3 * b + j];
+            out.lKMass(i * dof + j, va, vb) = Mu[3 * a + i][3 * b + j];
+          }
+          out.lKState(i * dof + 3, va, vb) = Kuc[3 * a + i][b];
+          out.lKState(3 * dof + i, va, vb) = Kcu[a][3 * b + i];
+        }
+        out.lKState(3 * dof + 3, va, vb) = Kcc[a][b];
+        out.lKRate(3 * dof + 3, va, vb) = Mc[a][b];
+      }
+    }
 
-  return out;
+    out.historyUpdated.assign(historyUpdated, historyUpdated + input.history.size());
+
+    return out;
+  });
 #endif
 }
-
-#ifdef SV_HAVE_INTERFACE2
-namespace {
-
-/// Interface2 input arrays for one element, in AceGen's node order.
-struct RawElementInput {
-  double positions[30];
-  double displacements[30];
-  double accelerations[30];
-  double concentrations[10];
-  double rates[10];
-  std::vector<double> domainData;
-  std::vector<double> history;
-};
-
-RawElementInput raw_element_input(const ElementInput& input) {
-  RawElementInput raw;
-  flatten_positions(input.positions, raw.positions);
-  flatten_positions(input.displacements, raw.displacements);
-  flatten_positions(input.accelerations, raw.accelerations);
-  for (int a = 0; a < 10; a++) {
-    int v = kAceGenNodeToVtkNode[a];
-    raw.concentrations[a] = input.concentrations(v);
-    raw.rates[a] = input.rates(v);
-  }
-  raw.domainData = input.domainData;
-  raw.history = input.history;
-  return raw;
-}
-
-} // namespace
-#endif
 
 std::vector<double> history_with_active_stretches(const ElementInput& input) {
 #ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error("The 'deformation-diffusion' equation requires svMultiPhysics to be built with Interface2 support.");
+  no_interface2();
 #else
   RawElementInput raw = raw_element_input(input);
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
-           raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
-           input.timeIncrement, input.time, input.integrationCode, input.elementID);
+  const HistoryLayout layout = history_layout(input.model);
 
-  std::vector<double> stretches = elem.getGaussPointStretches();
+  std::vector<double> stretches = with_element(input.model, [&](auto* tag) {
+    using Element = ElementOf<decltype(tag)>;
+    Element elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
+                 raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
+                 input.timeIncrement, input.time, input.integrationCode, input.elementID);
+    return elem.getGaussPointStretches();
+  });
+
   std::vector<double> history = input.history;
   const int nGP = static_cast<int>(stretches.size()) / 2;
 
-  if (nGP == 0 || history.size() != static_cast<std::size_t>(nGP) * kHistoryValuesPerGaussPoint) {
+  if (nGP == 0 || history.size() != static_cast<std::size_t>(nGP) * layout.valuesPerGaussPoint) {
     throw std::runtime_error("ace_gen_cmm_smc::history_with_active_stretches: unexpected history or stretch size.");
   }
 
   for (int g = 0; g < nGP; g++) {
-    history[g * kHistoryValuesPerGaussPoint + kHistoryIndexLambdaa1] = stretches[2 * g];
-    history[g * kHistoryValuesPerGaussPoint + kHistoryIndexLambdaa2] = stretches[2 * g + 1];
+    history[g * layout.valuesPerGaussPoint + layout.activeStretch1] = stretches[2 * g];
+    history[g * layout.valuesPerGaussPoint + layout.activeStretch2] = stretches[2 * g + 1];
   }
 
   return history;
@@ -460,15 +535,17 @@ std::vector<double> history_with_active_stretches(const ElementInput& input) {
 
 std::vector<double> history_with_growth_orientation(const ElementInput& input) {
 #ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error("The 'deformation-diffusion' equation requires svMultiPhysics to be built with Interface2 support.");
+  no_interface2();
 #else
   RawElementInput raw = raw_element_input(input);
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
-           raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
-           input.timeIncrement, input.time, input.integrationCode, input.elementID);
 
-  std::vector<double> history = elem.initializeGrowthOrientationVectors();
+  std::vector<double> history = with_element(input.model, [&](auto* tag) {
+    using Element = ElementOf<decltype(tag)>;
+    Element elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
+                 raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
+                 input.timeIncrement, input.time, input.integrationCode, input.elementID);
+    return elem.initializeGrowthOrientationVectors();
+  });
 
   if (history.size() != input.history.size()) {
     throw std::runtime_error("ace_gen_cmm_smc::history_with_growth_orientation: unexpected history size.");
@@ -480,27 +557,30 @@ std::vector<double> history_with_growth_orientation(const ElementInput& input) {
 
 Array<double> post_process(const ElementInput& input) {
 #ifndef SV_HAVE_INTERFACE2
-  throw std::runtime_error("The 'deformation-diffusion' equation requires svMultiPhysics to be built with Interface2 support.");
+  no_interface2();
 #else
   RawElementInput raw = raw_element_input(input);
-  DeformationDiffusionConstrainedMixtureModelSmoothMuscleActiveGrowthReorientationTetrahedra3D10
-      elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
-           raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
-           input.timeIncrement, input.time, input.integrationCode, input.elementID);
 
-  const int numberOfPostData = elem.getNumberOfPostData();
-  double** post = elem.postProcess(raw.displacements, raw.concentrations, raw.history.data(),
-                                   raw.rates, raw.accelerations); // 10 x numberOfPostData
+  return with_element(input.model, [&](auto* tag) {
+    using Element = ElementOf<decltype(tag)>;
+    Element elem(raw.positions, raw.displacements, raw.concentrations, raw.accelerations, raw.rates,
+                 raw.domainData.data(), raw.history.data(), input.subIterationTolerance,
+                 input.timeIncrement, input.time, input.integrationCode, input.elementID);
 
-  Array<double> out(numberOfPostData, 10);
-  for (int a = 0; a < 10; a++) {
-    int va = kAceGenNodeToVtkNode[a];
-    for (int k = 0; k < numberOfPostData; k++) {
-      out(k, va) = post[a][k];
+    const int numberOfPostData = elem.getNumberOfPostData();
+    double** post = elem.postProcess(raw.displacements, raw.concentrations, raw.history.data(),
+                                     raw.rates, raw.accelerations); // 10 x numberOfPostData
+
+    Array<double> out(numberOfPostData, 10);
+    for (int a = 0; a < 10; a++) {
+      int va = kAceGenNodeToVtkNode[a];
+      for (int k = 0; k < numberOfPostData; k++) {
+        out(k, va) = post[a][k];
+      }
     }
-  }
 
-  return out;
+    return out;
+  });
 #endif
 }
 

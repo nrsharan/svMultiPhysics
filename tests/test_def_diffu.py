@@ -125,3 +125,40 @@ def test_hollow_cylinder_short_frosch_block(n_proc):
         10,
         name_ref="../hollow_cylinder_short/result_010.vtu",
     )
+
+
+# The smooth-muscle element (<CCBActiveGandR>) on the hollow_cylinder_short
+# wall and loads, with its own parameter set: reorientation, growth (growth
+# orientation initialized), the active response (active stretches
+# initialized) and a rate acceleration within ten steps.
+smc_fields = [
+    "Displacement",
+    "Concentration",
+    "MisesStress",
+    "SCirc",
+    "SAxial",
+    "SRadial",
+    "W",
+    "Growth",
+    "Stretch1",
+    "Stretch2",
+    "nC1",
+    "nC2",
+    "nD1",
+    "nD2",
+    "DetF",
+    "DetFe",
+    "DetFg",
+    "S",
+    "a1",
+    "a2",
+    "Ag1n",
+    "Ag2n",
+    "Ag3n",
+]
+
+
+@skip_if_no_interface2
+@skip_if_no_trilinos
+def test_hollow_cylinder_short_smc(n_proc):
+    run_with_reference(base_folder, "hollow_cylinder_short_smc", smc_fields, n_proc, 10)

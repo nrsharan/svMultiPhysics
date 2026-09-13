@@ -1616,14 +1616,34 @@ protected:
 /// initialization when the parameter first switches on: "active_stretches"
 /// (default for ActiveBool), "growth_orientation" or "none" (default).
 ///
+/// A <Rate_acceleration> element scales domain-data parameters while the
+/// time is before End_time: those of Multiplied_parameters are multiplied
+/// and those of Divided_parameters divided by Factor (names separated by
+/// spaces or commas), e.g. to speed up slow rate processes at the start of
+/// a simulation.
+///
 /// \code {.xml}
+/// <Rate_acceleration>
+///   <End_time> 220 </End_time>
+///   <Factor> 20 </Factor>
+///   <Multiplied_parameters> K3 K4 K7 </Multiplied_parameters>
+///   <Divided_parameters> Gamma2 </Divided_parameters>
+/// </Rate_acceleration>
 /// \endcode
+///
+/// The same class holds the parameters of the smooth-muscle element without
+/// the constrained mixture (DeformationDiffusionSmoothMuscleActiveGrowth
+/// ReorientationTetrahedra3D10), given in a <CCBActiveGandR> element with
+/// that element's domain-data names; a Domain has one of the two.
 class CCBActiveCMMGandRParameters : public ParameterLists
 {
 public:
   static const std::string xml_element_name_;
 
-  CCBActiveCMMGandRParameters();
+  /// XML element name of the smooth-muscle element's parameters.
+  static const std::string smc_xml_element_name_;
+
+  explicit CCBActiveCMMGandRParameters(const std::string& element_name = xml_element_name_);
 
   /// Set the values of parameters in this object from an XML element.
   void set_values(const tinyxml2::XMLElement* xml_elem);
@@ -1648,13 +1668,32 @@ public:
   /// Time segments given in the XML, in the order given.
   const std::vector<TimeSegments>& get_time_segments() const { return time_segments_; }
 
+  /// The <Rate_acceleration> element, if given.
+  struct RateAcceleration {
+    bool defined = false;
+    double end_time = 0.0;
+    double factor = 1.0;
+    std::vector<std::string> multiplied;
+    std::vector<std::string> divided;
+  };
+
+  const RateAcceleration& get_rate_acceleration() const { return rate_acceleration_; }
+
+  /// XML element name of this parameter block.
+  const std::string& element_name() const { return element_name_; }
+
 private:
+  std::string element_name_;
   bool value_set = false;
   std::map<std::string, double> parameters_;
   std::vector<TimeSegments> time_segments_;
+  RateAcceleration rate_acceleration_;
 
   /// Parse one <Time_segments> element.
   void set_time_segments(const tinyxml2::XMLElement* xml_elem);
+
+  /// Parse the <Rate_acceleration> element.
+  void set_rate_acceleration(const tinyxml2::XMLElement* xml_elem);
 };
 
 /// @brief The DomainParameters class stores parameters for the XML
@@ -1690,6 +1729,7 @@ class DomainParameters : public ParameterLists
     SolidViscosityParameters solid_viscosity;
     ActiveStressParameters active_stress;
     CCBActiveCMMGandRParameters ccb_active_cmm_gandr;
+    CCBActiveCMMGandRParameters ccb_active_gandr{CCBActiveCMMGandRParameters::smc_xml_element_name_};
 
     /// Ionic model parameters. Keys are the model names, as registered in the
     /// @ref IonicModelFactory.
@@ -1703,7 +1743,7 @@ class DomainParameters : public ParameterLists
     Parameter<double> backflow_stabilization_coefficient;
 
     /// Interface2/AceGen integration (quadrature) code for the CCB
-    /// constrained-mixture element, e.g. 18 (4 Gauss points).
+    /// elements, e.g. 18 (4 Gauss points).
     Parameter<int> ccb_active_cmm_gandr_integration_code;
     /// Sub-iteration tolerance passed to the Interface2/AceGen CCB element.
     Parameter<double> ccb_active_cmm_gandr_subiteration_tolerance;
