@@ -96,5 +96,30 @@ have about the same size in both codes (32 ranks, after one layer of overlap:
 and 15036 in FEDDLib), yet a FROSch `compute` takes 9.7 s in svMultiPhysics and
 3.8 s in FEDDLib, and svMultiPhysics needs 6 to 8 times fewer GMRES
 iterations. Neither the diagonal scaling, the stopping test, the kept coarse
-basis nor the Trilinos build (both optimized) explains this; the matrices of
-the two codes differ (see above), which is still to be compared directly.
+basis nor the Trilinos build (both optimized) explains this; the systems
+themselves do differ (below).
+
+### The two systems
+
+The first Newton system of both codes (16 ranks; written with
+`SVMP_TRILINOS_WRITE_SYSTEM` and `FEDD_WRITE_SYSTEM`, compared with
+`../tools/compare_systems.py`, nodes matched by their coordinates):
+
+- The concentration is zero in both runs (zero initial and wall values), so the
+  displacement-concentration coupling of the tangent is zero. FEDDLib stores no
+  coupling blocks; svMultiPhysics stores all 4x4 dof couplings of every node
+  pair (19.3 million entries against FEDDLib's 12.1 million), the coupling ones
+  as zeros. FROSch factorizes the stored pattern: without them
+  (`SVMP_FROSCH_DROP_ZEROS`), FROSch `compute` takes about half the time on
+  hollow_cylinder_short, with the same iterations.
+- Displacement block: same pattern; on the rows without Dirichlet conditions
+  svMultiPhysics's values are 1.185e-4 times FEDDLib's (relative difference
+  1e-3 after this factor, from the time integration).
+- Concentration block: same pattern, values differ by 30% beyond a common
+  factor (mass term Mc/dt in FEDDLib, gamma/(beta dt) Mc in svMultiPhysics).
+- Dirichlet conditions: FEDDLib replaces the Dirichlet rows by rows of the
+  identity but keeps the Dirichlet columns (its displacement block is
+  nonsymmetric, |A - A^T| / |A| = 0.24, and its Dirichlet diagonal entries are
+  1 against a median of 426); svMultiPhysics removes the rows and columns and
+  scales the system symmetrically. FROSch finds FEDDLib's Dirichlet rows itself
+  (rows with a single nonzero entry).
