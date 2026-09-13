@@ -41,6 +41,11 @@ in all seven tissue regions, and a drug concentration applied on the walls.
 
 - Linear solver: GMRES with `trilinos-frosch-block` and
   `../artery_dan/frosch_block.xml`.
+- Predictor: `<Predictor> same_displacement </Predictor>`: every time step
+  starts from the displacement of the previous one. The default predictor
+  extrapolates it with the previous velocity, which at the jump of the time
+  step from 0.02 to 0.5 after the pressure ramp (t = 1) started Newton far
+  from the solution and diverged.
 - Output: one XDMF/HDF5 pair (`result.xdmf`, `result.h5`) with the results
   of every 100th step: displacement, concentration and the element quantities
   MisesStress, SCirc, SAxial, SRadial, W, Growth, Stretch1, Stretch2, nC1,

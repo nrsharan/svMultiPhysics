@@ -626,8 +626,25 @@ void Integrator::predictor()
 
     if (com_mod.dFlag) {
 
+      // Same displacement as the previous time step (<Predictor>
+      // same_displacement), with the acceleration and velocity that the
+      // Newmark relations of the corrector give for it:
+      //   D_n = D_o + dt*Y_o + dt^2*((1/2 - beta)*A_o + beta*A_n),
+      //   Y_n = Y_o + dt*((1 - gam)*A_o + gam*A_n).
+      // After a jump in the time step, the default predictor extrapolates
+      // the displacement with the velocity of the previous step, which can
+      // start the Newton iteration far from the solution.
+      if (!com_mod.sstEq && eq.predictSameDisplacement) {
+        for (int i = s; i <= e; i++) {
+          for (int j = 0; j < Ao.ncols(); j++) {
+            An(i,j) = -(Yo(i,j) / (eq.beta*dt) + (0.5 - eq.beta) / eq.beta * Ao(i,j));
+            Yn(i,j) = Yo(i,j) + dt*((1.0 - eq.gam)*Ao(i,j) + eq.gam*An(i,j));
+          }
+        }
+        Dn.set_rows(s,e, Do.rows(s,e));
+
       // struct, lElas, FSI (struct, mesh)
-      if (!com_mod.sstEq) {
+      } else if (!com_mod.sstEq) {
         double coef = dt*dt*(0.5*eq.gam - eq.beta) / (eq.gam - 1.0);
         Dn.set_rows(s,e, Do.rows(s,e) + Yn.rows(s,e)*dt + An.rows(s,e)*coef);
 

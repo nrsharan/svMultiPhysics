@@ -1774,6 +1774,14 @@ void read_eq(Simulation* simulation, EquationParameters* eq_params, eqType& lEq)
   lEq.coupled = eq_params->coupled.value();
   lEq.minItr = eq_params->min_iterations.value();
   lEq.maxItr = eq_params->max_iterations.value();
+
+  // Predictor of the displacement-type unknowns (see Integrator::predictor()).
+  const std::string predictor = eq_params->predictor.value();
+  if (predictor != "same_velocity" && predictor != "same_displacement") {
+    throw std::runtime_error("[read_eq] Unknown <Predictor> '" + predictor +
+                             "'; use same_velocity or same_displacement.");
+  }
+  lEq.predictSameDisplacement = (predictor == "same_displacement");
   lEq.tol = eq_params->tolerance.value();
   lEq.expl_geom_cpl = eq_params->explicit_geometric_coupling.value();
 

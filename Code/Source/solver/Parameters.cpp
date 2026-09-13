@@ -2834,6 +2834,7 @@ EquationParameters::EquationParameters() {
                 initialize_rcr_from_flow);
 
   set_parameter("Max_iterations", 1, !required, max_iterations);
+  set_parameter("Predictor", "same_velocity", !required, predictor);
   set_parameter("Min_iterations", 1, !required, min_iterations);
 
   set_parameter("Prestress", false, !required, prestress);

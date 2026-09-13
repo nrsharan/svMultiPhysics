@@ -1170,6 +1170,11 @@ class eqType
     /// @brief Maximum iteration for this eq.
     int maxItr = 5;
 
+    /// @brief Whether the predictor keeps the displacement of the previous
+    /// time step (<Predictor> same_displacement) rather than its velocity;
+    /// see Integrator::predictor()
+    bool predictSameDisplacement = false;
+
     /// @brief Minimum iteration for this eq.
     int minItr = 1;
 

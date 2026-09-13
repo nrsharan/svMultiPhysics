@@ -78,6 +78,11 @@
    <Max_iterations> 25 </Max_iterations>
    <Tolerance> 1e-5 </Tolerance>
 
+   <!-- Each time step starts from the displacement of the previous one:
+        extrapolating it with the velocity at the end of the pressure ramp
+        overshoots when the time step jumps from 0.02 to 0.5 at t = 1. -->
+   <Predictor> same_displacement </Predictor>
+
    <!-- Adventitia: reorientationBool [1.0, 20.0) [220.0, 240.0) [840.0, 860.0), growthBool [540.0, 840.0) -->
    <Domain id="15" >
       <Integration_code> 18 </Integration_code>

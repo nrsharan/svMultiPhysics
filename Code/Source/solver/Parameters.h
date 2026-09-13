@@ -1884,6 +1884,14 @@ class EquationParameters : public ParameterLists
 
     Parameter<std::string> include_xml;
     Parameter<std::string> initialize;
+
+    /// Predictor of the displacement-type unknowns at the start of a time
+    /// step: "same_velocity" (default; the velocity of the previous time
+    /// step, the displacement extrapolated with it) or "same_displacement"
+    /// (the displacement of the previous time step, with the acceleration
+    /// and velocity the Newmark relations give for it). See
+    /// Integrator::predictor().
+    Parameter<std::string> predictor;
     Parameter<bool> initialize_rcr_from_flow;
 
     Parameter<int> max_iterations;
