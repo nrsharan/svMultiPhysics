@@ -76,6 +76,17 @@ skip_if_no_frosch = pytest.mark.skipif(
 )
 
 
+# XDMF/HDF5 result files need svMultiPhysics built with HDF5, recorded as
+# SV_HAS_HDF5 when the main build is configured.
+HAS_HDF5 = (
+    read_cmake_cache_variable(cmake_cache_path_for(cpp_exec), "SV_HAS_HDF5") or ""
+).upper() in ("ON", "1", "TRUE", "YES")
+skip_if_no_hdf5 = pytest.mark.skipif(
+    not HAS_HDF5,
+    reason="svMultiPhysics not built with HDF5 (SV_HAS_HDF5=OFF in CMakeCache.txt)",
+)
+
+
 def _detect_oversubscribe_flag():
     """Return the mpirun flag needed to allow more ranks than physical cores.
 

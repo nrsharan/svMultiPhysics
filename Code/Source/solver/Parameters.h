@@ -1903,6 +1903,14 @@ class EquationParameters : public ParameterLists
 /// @brief The GeneralSimulationParameters class stores paramaters for the
 /// 'GeneralSimulationParameters' XML element.
 ///
+/// With 'Save_results_in_XDMF_format' true (default false), the results of the
+/// time steps selected by 'Save_results_to_VTK_format',
+/// 'Increment_in_saving_VTK_files' and 'Start_saving_after_time_step' are
+/// written to one XDMF file '<prefix>.xdmf' with their data in one HDF5 file
+/// '<prefix>.h5', instead of one VTU file '<prefix>_<time step>.vtu' per
+/// saved time step. ParaView opens the '.xdmf' file. It needs svMultiPhysics
+/// built with HDF5 (the one of VTK, or a separate one).
+///
 /// \code {.xml}
 /// <GeneralSimulationParameters>
 ///   <Continue_previous_simulation> 0 </Continue_previous_simulation>
@@ -1912,6 +1920,7 @@ class EquationParameters : public ParameterLists
 ///   <Spectral_radius_of_infinite_time_step> 0.50 </Spectral_radius_of_infinite_time_step>
 ///   <Searched_file_name_to_trigger_stop> STOP_SIM </Searched_file_name_to_trigger_stop>
 ///   <Save_results_to_VTK_format> true </Save_results_to_VTK_format>
+///   <Save_results_in_XDMF_format> false </Save_results_in_XDMF_format>
 ///   <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
 ///   <Increment_in_saving_VTK_files> 1 </Increment_in_saving_VTK_files>
 ///   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
@@ -1941,6 +1950,7 @@ class GeneralSimulationParameters : public ParameterLists
     Parameter<bool> save_averaged_results;
     Parameter<bool> save_domain_id_in_every_file;
     Parameter<bool> save_results_to_vtk_format;
+    Parameter<bool> save_results_in_xdmf_format;
     Parameter<bool> simulation_requires_remeshing;
     Parameter<bool> start_averaging_from_zero;
     Parameter<bool> verbose;

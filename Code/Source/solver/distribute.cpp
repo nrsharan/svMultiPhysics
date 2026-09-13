@@ -322,6 +322,7 @@ void distribute(Simulation* simulation)
     cm.bcast(cm_mod, &com_mod.saveAve);
     cm.bcast(cm_mod, &com_mod.alwaysSaveDomainID);
     cm.bcast(cm_mod, &com_mod.saveVTK);
+    cm.bcast(cm_mod, &com_mod.saveXDMF);
     cm.bcast(cm_mod, &com_mod.bin2VTK);
 
     cm.bcast(cm_mod, &com_mod.mvMsh);

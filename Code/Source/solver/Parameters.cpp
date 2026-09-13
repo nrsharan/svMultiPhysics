@@ -2975,6 +2975,8 @@ GeneralSimulationParameters::GeneralSimulationParameters() {
                 save_averaged_results);
   set_parameter("Save_domain_ID_in_every_file", false, !required,
                 save_domain_id_in_every_file);
+  set_parameter("Save_results_in_XDMF_format", false, !required,
+                save_results_in_xdmf_format);
   set_parameter("Save_results_in_folder", "", !required,
                 save_results_in_folder);
   set_parameter("Save_results_to_VTK_format", false, required,
@@ -3109,6 +3111,14 @@ void GeneralSimulationParameters::set_values(tinyxml2::XMLElement *xml_element,
         increment_in_saving_vtk_files.value() >= 1,
         "The GeneralSimulationParameters element "
         "'Increment_in_saving_VTK_files' must be greater than or equal to 1.");
+
+#ifndef WITH_HDF5
+    svmp::check<svmp::ParseException>(
+        !save_results_in_xdmf_format.value(),
+        "The GeneralSimulationParameters element 'Save_results_in_XDMF_format' "
+        "needs svMultiPhysics built with HDF5 (the one of VTK, or a separate "
+        "one); this build has none.");
+#endif
   }
 }
 

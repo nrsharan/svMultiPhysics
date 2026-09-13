@@ -6,6 +6,9 @@
 #include "vtk_xml.h"
 #include "vtk_xml_parser.h"
 #include "VtkData.h"
+#ifdef WITH_HDF5
+#include "xdmf_writer.h"
+#endif
 
 #include "all_fun.h"
 #include "consts.h"
@@ -13,6 +16,7 @@
 #include "post.h"
 
 #include <iomanip>
+#include <memory>
 #include <sstream>
 #include <stdio.h>
 
@@ -907,13 +911,19 @@ void write_vtu_debug(ComMod& com_mod, mshType& lM, const std::string& fName)
   delete vtk_writer;
 }
 
-//------------
-// write_vtus
-//------------
-// Reproduces 'SUBROUTINE WRITEVTUS(lA, lY, lD, lAve)'
+//-----------------
+// collect_results
+//-----------------
+// Reproduces 'SUBROUTINE WRITEVTUS(lA, lY, lD, lAve)' up to the writing of the
+// file: gathers the results of all meshes into 'results' (points, cells, point
+// and cell data, time) on the master process (collective). Returns true on the
+// master process and false on the others.
 //
-void write_vtus(Simulation* simulation, const SolutionStates& solutions, const bool lAve)
+static bool collect_results(Simulation* simulation, const SolutionStates& solutions, const bool lAve,
+    VtkData& results)
 {
+  VtkData* vtk_writer = &results;
+
   #define n_debug_write_vtus
   #ifdef debug_write_vtus 
   DebugMsg dmsg(__func__, simulation->com_mod.cm.idcm());
@@ -1469,26 +1479,13 @@ void write_vtus(Simulation* simulation, const SolutionStates& solutions, const b
 
   if (cm.slv(cm_mod)) {
     com_mod.savedOnce = true;
-    return; 
+    return false;
   }
 
   Array<double> tmpV(consts::maxNSD, nNo);
 
-  // Writing to vtu file (master only)
+  // Collecting the results (master only)
   //
-  std::string fName;
-
-  if (com_mod.cTS > 1000 || lAve) {
-    fName = std::to_string(com_mod.cTS);
-  } else { 
-    std::ostringstream ss;
-    ss << std::setw(3) << std::setfill('0') << com_mod.cTS;
-    fName = ss.str();
-  }
-
-  fName = com_mod.saveName + "_" + fName + ".vtu";
-  auto vtk_writer = VtkData::create_writer(fName);
-
   // No time field is assigned for time-averaged output.
   if (!lAve) {
     vtk_writer->set_time_value(com_mod.time);
@@ -1639,8 +1636,74 @@ void write_vtus(Simulation* simulation, const SolutionStates& solutions, const b
      }
      vtk_writer->set_element_data("EGHOST", tmpI);
   }
-  vtk_writer->write();
-  delete vtk_writer;
+
+  return true;
+}
+
+//------------
+// write_vtus
+//------------
+// Writes the results of the current time step to the VTU file
+// '<saveName>_<cTS>.vtu' (collective).
+//
+void write_vtus(Simulation* simulation, const SolutionStates& solutions, const bool lAve)
+{
+  auto& com_mod = simulation->com_mod;
+  std::string fName;
+
+  if (com_mod.cTS > 1000 || lAve) {
+    fName = std::to_string(com_mod.cTS);
+  } else {
+    std::ostringstream ss;
+    ss << std::setw(3) << std::setfill('0') << com_mod.cTS;
+    fName = ss.str();
+  }
+
+  fName = com_mod.saveName + "_" + fName + ".vtu";
+
+  VtkVtuData results(fName, /* reader = */ false);
+
+  if (collect_results(simulation, solutions, lAve, results)) {
+    results.write();
+  }
+}
+
+//---------------
+// write_results
+//---------------
+// Writes the results of the current time step (collective): with
+// Save_results_in_XDMF_format, added to '<saveName>.h5' and listed in
+// '<saveName>.xdmf'; otherwise to a VTU file of their own (write_vtus).
+//
+void write_results(Simulation* simulation, const SolutionStates& solutions)
+{
+  auto& com_mod = simulation->com_mod;
+
+  if (!com_mod.saveXDMF) {
+    write_vtus(simulation, solutions, /* lAve = */ false);
+    return;
+  }
+
+#ifdef WITH_HDF5
+  VtkVtuData results;
+
+  if (!collect_results(simulation, solutions, /* lAve = */ false, results)) {
+    return;
+  }
+
+  // One pair of files for the whole run, also across remeshing, written by the
+  // master process. A continued simulation keeps the steps up to the one it
+  // continues from.
+  static std::unique_ptr<XdmfWriter> xdmf_writer;
+
+  if (!xdmf_writer) {
+    xdmf_writer = std::make_unique<XdmfWriter>(com_mod.saveName, com_mod.stFileFlag ? com_mod.rsTS : -1);
+  }
+
+  xdmf_writer->write(*results.get_grid(), com_mod.cTS, com_mod.time);
+#else
+  throw std::runtime_error("Save_results_in_XDMF_format needs svMultiPhysics built with HDF5.");
+#endif
 }
 
 };

@@ -1668,6 +1668,10 @@ class ComMod {
     /// @brief Whether to save to VTK files
     bool saveVTK = false;
 
+    /// @brief Whether to save the results to one XDMF/HDF5 pair of files
+    /// instead of one VTU file per saved time step
+    bool saveXDMF = false;
+
     /// @brief Whether any file being saved
     bool savedOnce = false;
 

@@ -184,6 +184,34 @@ endif()
 
 include(${VTK_USE_FILE})
 
+# XDMF/HDF5 result files (Save_results_in_XDMF_format) need HDF5: the one of
+# VTK if VTK provides it, otherwise a separate HDF5 installation. Without
+# either, only VTU result files can be written.
+if(TARGET VTK::hdf5)
+  set(USE_HDF5 1)
+  ADD_DEFINITIONS(-DWITH_HDF5 -DSV_HDF5_FROM_VTK)
+  set(SV_HDF5_LIBRARIES VTK::hdf5)
+  message(STATUS "XDMF/HDF5 result files: available (HDF5 of VTK)")
+else()
+  find_package(HDF5 COMPONENTS C QUIET)
+  if(HDF5_FOUND)
+    set(USE_HDF5 1)
+    ADD_DEFINITIONS(-DWITH_HDF5)
+    include_directories(${HDF5_INCLUDE_DIRS})
+    set(SV_HDF5_LIBRARIES ${HDF5_C_LIBRARIES})
+    message(STATUS "XDMF/HDF5 result files: available (HDF5 ${HDF5_VERSION})")
+  else()
+    message(STATUS "XDMF/HDF5 result files: not available (no HDF5 in VTK or found separately)")
+  endif()
+endif()
+
+# Recorded in the cache so that the tests can tell whether XDMF output is available.
+if(USE_HDF5)
+  set(SV_HAS_HDF5 ON CACHE INTERNAL "svMultiPhysics can write XDMF/HDF5 result files")
+else()
+  set(SV_HAS_HDF5 OFF CACHE INTERNAL "svMultiPhysics can write XDMF/HDF5 result files")
+endif()
+
 set(lib ${SV_LIB_SVFSI_NAME})
 
 # coverage
@@ -337,6 +365,10 @@ if(USE_FROSCH)
   set(CSRCS ${CSRCS} frosch_impl.h frosch_impl.cpp)
 endif()
 
+if(USE_HDF5)
+  set(CSRCS ${CSRCS} xdmf_writer.h xdmf_writer.cpp)
+endif()
+
 simvascular_add_executable(${SV_MULTIPHYSICS_EXE}
   SRCS ${CSRCS}
   DEV_SCRIPT_NAME "mysvmultiphysics"
@@ -374,6 +406,10 @@ endif()
 
 if(SV_USE_INTERFACE2)
   target_link_libraries(${SV_MULTIPHYSICS_EXE} Interface2::interface2)
+endif()
+
+if(USE_HDF5)
+  target_link_libraries(${SV_MULTIPHYSICS_EXE} ${SV_HDF5_LIBRARIES})
 endif()
 
 # unit tests and Google Test
@@ -433,6 +469,10 @@ if(ENABLE_UNIT_TEST)
 
   if(SV_USE_INTERFACE2)
     target_link_libraries(run_all_unit_tests Interface2::interface2)
+  endif()
+
+  if(USE_HDF5)
+    target_link_libraries(run_all_unit_tests ${SV_HDF5_LIBRARIES})
   endif()
 
   # libraries

@@ -268,7 +268,7 @@ void iterate_solution(Simulation* simulation)
   // current solution. cTS is non-zero when restarting from a file or when
   // continuing after remeshing, where the time step has already been written.
   if (com_mod.saveVTK && cTS == 0 && com_mod.saveATS == 0) {
-    vtk_xml::write_vtus(simulation, solutions, /* lAvg = */ false);
+    vtk_xml::write_results(simulation, solutions);
   }
 
   // Outer loop for marching in time. When entering this loop, all old
@@ -363,7 +363,8 @@ void iterate_solution(Simulation* simulation)
     dmsg << "Starting Newton iteration via Integrator ..." << std::endl;
     #endif
 
-    // Results of this time step are written to a VTU file
+    // Results of this time step are written (to a VTU file, or to the
+    // XDMF/HDF5 files)
     const bool save_vtu = com_mod.saveVTK && cTS % com_mod.saveIncr == 0 &&
                           cTS >= com_mod.saveATS;
 
@@ -479,7 +480,7 @@ void iterate_solution(Simulation* simulation)
       output::write_restart(simulation, com_mod.timeP, solutions);
     }
 
-    // Writing results into the disk with VTU format
+    // Writing results to disk (VTU or XDMF/HDF5 format)
     //
     #ifdef debug_iterate_solution
     dmsg;
@@ -488,7 +489,7 @@ void iterate_solution(Simulation* simulation)
     #endif
 
     if (save_vtu) {
-      vtk_xml::write_vtus(simulation, solutions, /* lAvg = */ false);
+      vtk_xml::write_results(simulation, solutions);
     }
 
     // [NOTE] Not implemented.

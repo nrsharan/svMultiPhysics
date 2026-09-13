@@ -37,6 +37,10 @@ void write_vtu_debug(ComMod& com_mod, mshType& lM, const std::string& fName);
 
 void write_vtus(Simulation* simulation, const SolutionStates& solutions, const bool lAve);
 
+/// @brief Write the results of the current time step: to the XDMF/HDF5 files
+/// with Save_results_in_XDMF_format, otherwise to a VTU file of their own.
+void write_results(Simulation* simulation, const SolutionStates& solutions);
+
 };
 
 #endif

@@ -523,6 +523,12 @@ public:
   VtkVtuData(const std::string &file_name, bool reader = true);
 
   /**
+   * @brief The mesh and its data, as the vtkUnstructuredGrid that write()
+   *   writes.
+   */
+  vtkSmartPointer<vtkUnstructuredGrid> get_grid() const { return vtk_ugrid; }
+
+  /**
    * @brief Create an empty grid.
    */
   virtual void create_grid() override;
