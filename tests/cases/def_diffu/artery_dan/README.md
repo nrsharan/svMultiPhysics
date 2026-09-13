@@ -18,7 +18,11 @@ two codes (and their FROSch preconditioners) can be compared one to one.
   (PLACEHOLDER: region-specific CMM parameters are still to be defined).
 - Time stepping: 50 steps of 0.02 (the load ramp).
 - Linear solver: GMRES without restart, tolerance 1e-5, preconditioner
-  `trilinos-frosch` (as FEDDLib's settings).
+  `trilinos-frosch-block` with FEDDLib's FROSch settings
+  (`frosch_block_feddlib.xml`), the fastest setup measured (see Results). To
+  run another preconditioner, also remove the `<Configuration_file>` line: the
+  file is for the two-block preconditioner (rotations of the displacements),
+  which `trilinos-frosch` cannot use.
 
 ## Generating the mesh and FEDDLib's Dirichlet node sets
 
@@ -73,9 +77,9 @@ solve. Wall times of the same run vary by up to about 10% between nodes.
 | svMultiPhysics `trilinos-frosch`, coarse basis kept (`frosch_recycle_coarse_basis.xml`) | 3588 s, 27.1 | 1438 s, 35.8 |
 | FEDDLib `artery_dan_cmm` (coarse basis kept) | 3233 s, 203.7 | 1735 s, 266.0 |
 | FEDDLib, coarse basis recomputed | 3464 s, 156.5 | 1545 s, 192.2 |
-| svMultiPhysics `trilinos-frosch`, symbolic factorization not reused (current default) | | 711 s, 33.0 |
+| svMultiPhysics `trilinos-frosch`, symbolic factorization not reused (the default now) | | 711 s, 33.0 |
 | svMultiPhysics `trilinos-frosch`, reused, stored zeros dropped (`SVMP_FROSCH_DROP_ZEROS`) | 1843 s, 25.1 | 718 s, 33.0 |
-| svMultiPhysics `trilinos-frosch-block`, FEDDLib's FROSch settings (`frosch_block_feddlib.xml`) | 1608 s, 26.8 | 702 s, 34.7 |
+| svMultiPhysics `trilinos-frosch-block`, FEDDLib's FROSch settings (`frosch_block_feddlib.xml`, this case's setup) | 1608 s, 26.8 | 702 s, 34.7 |
 | svMultiPhysics `trilinos-frosch-block`, basis entries below 1e-5 dropped (`frosch_block_dropping.xml`) | | 714 s, 30.3 |
 | svMultiPhysics `trilinos-frosch-block`, FEDDLib's settings and stored zeros dropped | | 676 s, 34.7 |
 
@@ -115,8 +119,9 @@ The first Newton system of both codes (16 ranks; written with
   coupling blocks; svMultiPhysics stores all 4x4 dof couplings of every node
   pair (19.3 million entries against FEDDLib's 12.1 million), the coupling ones
   as zeros. FROSch factorizes the stored pattern: without them
-  (`SVMP_FROSCH_DROP_ZEROS`), FROSch `compute` takes about half the time on
-  hollow_cylinder_short, with the same iterations.
+  (`SVMP_FROSCH_DROP_ZEROS`), FROSch `compute` took about half the time on
+  hollow_cylinder_short (with the symbolic factorization reused), with the
+  same iterations.
 - Displacement block: same pattern; on the rows without Dirichlet conditions
   svMultiPhysics's values are 1.185e-4 times FEDDLib's (relative difference
   1e-3 after this factor, from the time integration).
@@ -137,10 +142,14 @@ slower than extracting and factorizing them anew, the more so for the long
 rows of svMultiPhysics's matrix (up to 315 entries). Not reusing it (FEDDLib
 does not either, and it is now svMultiPhysics's default), or dropping the
 stored zeros, halves the whole run on 32 ranks (711 s and 718 s instead of
-1522 s, same iterations); both remove the same cost. For the block
-preconditioner, dropping coarse basis entries below 1e-5 as FEDDLib does
-halves it as well (714 s instead of 1368 s, same iterations). svMultiPhysics
-is now faster than FEDDLib on 16 and 32 ranks.
+1522 s, same iterations); both remove the same cost. The block preconditioner
+with FEDDLib's settings, which also do not reuse the symbolic factorization,
+takes 702 s (basis entries below 1e-5 dropped and the coarse basis kept) and
+714 s (only the entries dropped) instead of 1368 s; on 32 ranks the setups
+without symbolic factorization reuse are all within 676-718 s, i.e. within
+the variation between nodes, while on 16 ranks the block preconditioner with
+FEDDLib's settings is the fastest (1608 s against 1843 s). svMultiPhysics is
+now faster than FEDDLib on 16 and 32 ranks.
 
 ### The number of GMRES iterations
 
