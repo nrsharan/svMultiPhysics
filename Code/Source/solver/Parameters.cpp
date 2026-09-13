@@ -2835,6 +2835,7 @@ EquationParameters::EquationParameters() {
 
   set_parameter("Max_iterations", 1, !required, max_iterations);
   set_parameter("Predictor", "same_velocity", !required, predictor);
+  set_parameter("Include_inertia", true, !required, include_inertia);
   set_parameter("Min_iterations", 1, !required, min_iterations);
 
   set_parameter("Prestress", false, !required, prestress);

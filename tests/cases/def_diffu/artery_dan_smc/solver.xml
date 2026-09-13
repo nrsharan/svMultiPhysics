@@ -83,6 +83,10 @@
         overshoots when the time step jumps from 0.02 to 0.5 at t = 1. -->
    <Predictor> same_displacement </Predictor>
 
+   <!-- Quasi-static structure: the element's inertia (Rdyn, Mu) is left
+        out; the parameters, Density included, are unchanged. -->
+   <Include_inertia> false </Include_inertia>
+
    <!-- Adventitia: reorientationBool [1.0, 20.0) [220.0, 240.0) [840.0, 860.0), growthBool [540.0, 840.0) -->
    <Domain id="15" >
       <Integration_code> 18 </Integration_code>

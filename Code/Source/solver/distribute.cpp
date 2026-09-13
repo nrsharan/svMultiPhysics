@@ -1553,6 +1553,7 @@ void dist_eq(ComMod& com_mod, const CmMod& cm_mod, const cmType& cm, const std::
   cm.bcast(cm_mod, &lEq.coupled);
   cm.bcast(cm_mod, &lEq.maxItr);
   cm.bcast(cm_mod, &lEq.predictSameDisplacement);
+  cm.bcast(cm_mod, &lEq.includeInertia);
   cm.bcast(cm_mod, &lEq.minItr);
   cm.bcast(cm_mod, &lEq.roInf);
   cm.bcast_enum(cm_mod, &lEq.phys);

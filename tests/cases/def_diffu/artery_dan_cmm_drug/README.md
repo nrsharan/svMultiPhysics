@@ -38,6 +38,11 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
 - Loads, time stepping and rate acceleration as in `../artery_dan_smc`
   (pressure ramped to 85 mmHg over the first second, drug concentration 2 on
   the walls from t = 860, 17958 steps to t = 1500).
+- Structure: quasi-static, `<Include_inertia> false </Include_inertia>`: the
+  element's dynamic residual and mass matrix are left out; the parameters,
+  Density included, are unchanged. With the inertia of Density 1 (kg/mm^3) the wall
+  oscillated with a period of about 1 s after the pressure ramp, and the
+  runs diverged near t = 2 whatever the time step.
 - `<Predictor> same_displacement </Predictor>`.
 - Linear solver: GMRES with `trilinos-frosch-block` and its default FROSch
   settings (coarse basis recomputed for every matrix: the time step varies

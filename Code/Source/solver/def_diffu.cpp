@@ -230,6 +230,10 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
   const int eNoN = lM.eNoN; // 10 for this Tet10 element
   const int dof = eq.dof;   // 4 (3 displacement + 1 concentration)
 
+  // With <Include_inertia> false the element's dynamic residual and mass
+  // matrix are left out: a quasi-static structure.
+  const double inertia = eq.includeInertia ? 1.0 : 0.0;
+
   Vector<int> ptr(eNoN);
   Array<double> lR(dof, eNoN);
   Array3<double> lK(dof*dof, eNoN, eNoN);
@@ -272,14 +276,14 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
 
     for (int a = 0; a < eNoN; a++) {
       for (int i = 0; i < dof; i++) {
-        lR(i,a) = output.lR(i,a) + output.lRdyn(i,a);
+        lR(i,a) = output.lR(i,a) + inertia*output.lRdyn(i,a);
       }
     }
 
     for (int a = 0; a < eNoN; a++) {
       for (int b = 0; b < eNoN; b++) {
         for (int idx = 0; idx < dof*dof; idx++) {
-          lK(idx,a,b) = afu*output.lKState(idx,a,b) + afv*output.lKRate(idx,a,b) + am*output.lKMass(idx,a,b);
+          lK(idx,a,b) = afu*output.lKState(idx,a,b) + afv*output.lKRate(idx,a,b) + inertia*am*output.lKMass(idx,a,b);
         }
       }
     }

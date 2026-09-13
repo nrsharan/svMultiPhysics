@@ -1175,6 +1175,11 @@ class eqType
     /// see Integrator::predictor()
     bool predictSameDisplacement = false;
 
+    /// @brief Whether the inertia of the deformation-diffusion element is
+    /// included (<Include_inertia>); false gives a quasi-static structure.
+    /// Only used by the deformation-diffusion equation
+    bool includeInertia = true;
+
     /// @brief Minimum iteration for this eq.
     int minItr = 1;
 

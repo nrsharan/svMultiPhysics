@@ -41,6 +41,11 @@ in all seven tissue regions, and a drug concentration applied on the walls.
 
 - Linear solver: GMRES with `trilinos-frosch-block` and
   `../artery_dan/frosch_block.xml`.
+- Structure: quasi-static, `<Include_inertia> false </Include_inertia>`: the
+  element's dynamic residual and mass matrix are left out; the parameters,
+  Density included, are unchanged. With the inertia of Density 1 (kg/mm^3) the wall
+  oscillated with a period of about 1 s after the pressure ramp, and the
+  runs diverged near t = 2 whatever the time step.
 - Predictor: `<Predictor> same_displacement </Predictor>`: every time step
   starts from the displacement of the previous one. The default predictor
   extrapolates it with the previous velocity, which at the jump of the time

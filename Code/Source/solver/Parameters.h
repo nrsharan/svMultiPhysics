@@ -1892,6 +1892,12 @@ class EquationParameters : public ParameterLists
     /// and velocity the Newmark relations give for it). See
     /// Integrator::predictor().
     Parameter<std::string> predictor;
+
+    /// Whether the deformation-diffusion element's inertia (its dynamic
+    /// residual Rdyn and mass matrix Mu) is included (default true). false
+    /// solves a quasi-static structure, whatever the element's Density.
+    /// Only used by the deformation-diffusion equation.
+    Parameter<bool> include_inertia;
     Parameter<bool> initialize_rcr_from_flow;
 
     Parameter<int> max_iterations;

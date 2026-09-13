@@ -1782,6 +1782,10 @@ void read_eq(Simulation* simulation, EquationParameters* eq_params, eqType& lEq)
                              "'; use same_velocity or same_displacement.");
   }
   lEq.predictSameDisplacement = (predictor == "same_displacement");
+
+  // Quasi-static structure for the deformation-diffusion equation (see
+  // def_diffu::construct_def_diffu()); not used by the other equations.
+  lEq.includeInertia = eq_params->include_inertia.value();
   lEq.tol = eq_params->tolerance.value();
   lEq.expl_geom_cpl = eq_params->explicit_geometric_coupling.value();
 
