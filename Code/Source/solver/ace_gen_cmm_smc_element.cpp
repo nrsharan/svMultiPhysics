@@ -447,7 +447,8 @@ ElementOutput compute(const ElementInput& input) {
       throw std::runtime_error(
           "The Interface2/AceGen " + xml_block_name(input.model) + " element failed to "
           "converge (element " + std::to_string(input.elementID) +
-          ", error code " + std::to_string(errorCode) + ").");
+          ", error code " + std::to_string(errorCode) + "; the element's messages are in ErrorLog.txt "
+          "in the working directory).");
     }
 
     double* Rint = elem.getResiduumVectorRint(); // 30

@@ -10,7 +10,10 @@
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
   <!-- Pressure ramp in steps of 0.005 (FEDDLib: 0.02): with this parameter
-       set the first quasi-static load step of 0.02 diverges. -->
+       set the first quasi-static load step of 0.02 diverges. Growth
+       switches on at 540.01 (FEDDLib: 540), in the first step of 0.025: in
+       the last step of 0.2, ending at t = 540, the element's growth
+       iteration diverged. -->
   <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.005 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 0.1 </Time_step_size> </Add_time_step_segment>
@@ -175,10 +178,10 @@
           <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Rate_acceleration>
           <End_time> 220.0 </End_time>
@@ -271,10 +274,10 @@
           <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="ActiveBool" initialization="active_stretches">
           <Add_interval> <Start_time> 20.0 </Start_time> <End_time> 220.0 </End_time> </Add_interval>
@@ -372,10 +375,10 @@
           <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="ActiveBool" initialization="active_stretches">
           <Add_interval> <Start_time> 20.0 </Start_time> <End_time> 220.0 </End_time> </Add_interval>
@@ -728,10 +731,10 @@
           <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.0 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
         </Time_segments>
         <Rate_acceleration>
           <End_time> 220.0 </End_time>

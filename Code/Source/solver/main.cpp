@@ -37,6 +37,8 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include <chrono>
+#include <thread>
 
 //------------------------
 // add_eq_linear_algebra
@@ -577,6 +579,28 @@ void run_simulation(Simulation* simulation)
 }
 
 
+// Reports an exception that ended the program on process mpi_rank (what() or,
+// for an unknown exception, nullptr). The master reports it at once, as
+// before. Another process waits a moment first: an error that every process
+// hits is then reported once, by the master, whose MPI_Abort ends the run,
+// while an error of one process only (e.g. an element that did not converge
+// in its subdomain) is still reported, by that process.
+static void report_unhandled_exception(const int mpi_rank, const char* what)
+{
+  if (mpi_rank != 0) {
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::cerr << "[svMultiPhysics] ERROR: The svMultiPhysics program has failed due to "
+              << (what ? "an unhandled exception" : "an unknown unhandled exception")
+              << " on process " << mpi_rank << "." << std::endl;
+  } else {
+    std::cerr << "[svMultiPhysics] ERROR: The svMultiPhysics program has failed due to "
+              << (what ? "unhandled exception." : "an unknown unhandled exception.") << std::endl;
+  }
+  if (what) {
+    std::cerr << what << std::endl;
+  }
+}
+
 /// @brief Run a simulation from the command line using the name of a solver input 
 /// XML file as an argument.
 //
@@ -700,25 +724,17 @@ int main(int argc, char *argv[])
   return 0;
 
   } catch (const svmp::ExceptionBase& exception) {
-    if (mpi_rank == 0) {
-      std::cerr << "[svMultiPhysics] ERROR: The svMultiPhysics program has failed due to unhandled exception." << std::endl;
-      std::cerr << exception.what() << std::endl;
-    }
+    report_unhandled_exception(mpi_rank, exception.what());
     svmp::ExceptionRuntime::abort_mpi_if_needed(EXIT_FAILURE);
     svmp::ExceptionRuntime::finalize_mpi_if_needed();
     return EXIT_FAILURE;
   } catch (const std::exception& exception) {
-    if (mpi_rank == 0) {
-      std::cerr << "[svMultiPhysics] ERROR: The svMultiPhysics program has failed due to unhandled exception." << std::endl;
-      std::cerr << exception.what() << std::endl;
-    }
+    report_unhandled_exception(mpi_rank, exception.what());
     svmp::ExceptionRuntime::abort_mpi_if_needed(EXIT_FAILURE);
     svmp::ExceptionRuntime::finalize_mpi_if_needed();
     return EXIT_FAILURE;
   } catch (...) {
-    if (mpi_rank == 0) {
-      std::cerr << "[svMultiPhysics] ERROR: The svMultiPhysics program has failed due to an unknown unhandled exception." << std::endl;
-    }
+    report_unhandled_exception(mpi_rank, nullptr);
     svmp::ExceptionRuntime::abort_mpi_if_needed(EXIT_FAILURE);
     svmp::ExceptionRuntime::finalize_mpi_if_needed();
     return EXIT_FAILURE;

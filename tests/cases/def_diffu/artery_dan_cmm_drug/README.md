@@ -27,8 +27,11 @@ constrained-mixture element has 71 parameters, of which
 Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
 
 - ReorientationBool in [1, 20), [220, 240) and [840, 860);
-- GroundGrowthBool and SMCGrowthBool in [540, 840), the growth orientation
-  initialized at t = 540;
+- GroundGrowthBool and SMCGrowthBool in [540.01, 840) (FEDDLib: [540, 840)),
+  the growth orientation initialized when they switch on, in the first step
+  of 0.025 (t = 540.025). Switched on at t = 540, i.e. in the last step of
+  0.2, the element's local growth iteration diverged ("Growth: divergence
+  ... DeltaT= 0.2" in ErrorLog.txt) and the run stopped;
 - in the media (16, 17) ActiveBool in [20, 220), [240, 540) and [860, 1500),
   the active stretches initialized at t = 20;
 - CollRemodelingBool off.
