@@ -32,10 +32,10 @@
   <Increment_in_saving_VTK_files> 100 </Increment_in_saving_VTK_files>
   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
 
-  <!-- The element history is not in the restart files, so a continued
-       simulation would start the growth and remodeling anew: no restart
-       files are written. -->
-  <Increment_in_saving_restart_files> 10000000 </Increment_in_saving_restart_files>
+  <!-- Restart files (with the element history) every 500 steps, kept as
+       stFile_<step>.bin: continue with <Continue_previous_simulation> true
+       and the same number of processes (see README). -->
+  <Increment_in_saving_restart_files> 500 </Increment_in_saving_restart_files>
 
   <Verbose> 1 </Verbose>
   <Warning> 1 </Warning>

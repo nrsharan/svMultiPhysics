@@ -42,6 +42,40 @@ namespace def_diffu {
 
 namespace {
 
+/// Length of the per-element history of the deformation-diffusion elements of
+/// mesh lM (0 if it has none), and the equation they belong to (iEq, -1 if
+/// none).
+int history_length_per_element(const ComMod& com_mod, const mshType& lM, int& iEq)
+{
+  iEq = -1;
+  int length = -1;
+
+  for (int jEq = 0; jEq < com_mod.nEq; jEq++) {
+    const auto& eq = com_mod.eq[jEq];
+    if (eq.phys != consts::EquationType::phys_def_diffu) {
+      continue;
+    }
+
+    for (int e = 0; e < lM.nEl; e++) {
+      const auto& dmn = eq.dmn[all_fun::domain(com_mod, lM, jEq, e)];
+      if (dmn.phys != consts::EquationType::phys_def_diffu) {
+        continue;
+      }
+      if (length < 0) {
+        length = dmn.ccb_active_cmm_gandr_info.historyLengthPerElement;
+        iEq = jEq;
+      } else if (dmn.ccb_active_cmm_gandr_info.historyLengthPerElement != length) {
+        throw std::runtime_error(
+            "[def_diffu] Mesh '" + lM.name + "' has multiple "
+            "CCB element domains with different history lengths "
+            "(different elements or Integration_code values); this is not supported.");
+      }
+    }
+  }
+
+  return std::max(length, 0);
+}
+
 /// Set up the per-element history of mesh lM on first use by tiling the
 /// generic per-Gauss-point placeholder (ace_gen_cmm_smc::initial_history)
 /// across every element. This does not need to be geometry-aware: the AceGen
@@ -301,6 +335,57 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
   }
 }
 
+std::size_t restart_history_size(const ComMod& com_mod)
+{
+  std::size_t size = 0;
+  for (const auto& lM : com_mod.msh) {
+    int iEq = -1;
+    size += static_cast<std::size_t>(history_length_per_element(com_mod, lM, iEq)) * lM.nEl;
+  }
+  return size;
+}
+
+void write_restart_history(ComMod& com_mod, std::ofstream& restart_file)
+{
+  for (const auto& lM : com_mod.msh) {
+    int iEq = -1;
+    const int length = history_length_per_element(com_mod, lM, iEq);
+    if (length == 0) {
+      continue;
+    }
+
+    // Before the first time step the history has not been set up yet.
+    initialize_history(com_mod, lM, iEq);
+
+    const auto& history = com_mod.ccbActiveCmmGandrHistoryUpdated.at(lM.name);
+    if (history.size() != static_cast<std::size_t>(length) * lM.nEl) {
+      throw std::runtime_error("[def_diffu::write_restart_history] Unexpected history size for mesh '" +
+                               lM.name + "'.");
+    }
+    restart_file.write(reinterpret_cast<const char*>(history.data()), history.size() * sizeof(double));
+  }
+}
+
+void read_restart_history(ComMod& com_mod, std::ifstream& restart_file)
+{
+  for (const auto& lM : com_mod.msh) {
+    int iEq = -1;
+    const int length = history_length_per_element(com_mod, lM, iEq);
+    if (length == 0) {
+      continue;
+    }
+
+    std::vector<double> history(static_cast<std::size_t>(length) * lM.nEl);
+    restart_file.read(reinterpret_cast<char*>(history.data()), history.size() * sizeof(double));
+    if (!restart_file) {
+      throw std::runtime_error("[def_diffu::read_restart_history] The restart file has no element history "
+                               "for mesh '" + lM.name + "' (written by a version without it?).");
+    }
+    com_mod.ccbActiveCmmGandrHistory[lM.name] = history;
+    com_mod.ccbActiveCmmGandrHistoryUpdated[lM.name] = std::move(history);
+  }
+}
+
 void commit_history(ComMod& com_mod) {
   for (auto& [meshName, updated] : com_mod.ccbActiveCmmGandrHistoryUpdated) {
     com_mod.ccbActiveCmmGandrHistory[meshName] = updated;
@@ -336,11 +421,13 @@ void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionState
         }
         flag.initialized = true;
 
-        // A restart after the first switch-on continues from the restarted
-        // state.
+        // A restart at or after the first switch-on continues from the
+        // restarted state: its element history holds the initialization.
+        // (Without a restart, the switch-on step sets flag.initialized and
+        // the next steps do not get here.)
         const double first_start = flag.intervals.front()[0];
-        const bool restarted_after_start = previous_time > first_start &&
-                                           !time_segments::approx_equal(previous_time, first_start);
+        const bool restarted_after_start = previous_time > first_start ||
+                                           time_segments::approx_equal(previous_time, first_start);
 
         if (flag.initialization != "none" && !restarted_after_start) {
           if (master) {

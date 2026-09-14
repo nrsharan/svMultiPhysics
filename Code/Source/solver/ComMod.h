@@ -1777,10 +1777,9 @@ class ComMod {
     /// from main.cpp's iterate_solution(), alongside svMultiPhysics's own
     /// Ao=An/Yo=Yn/Do=Dn commit.
     ///
-    /// [TODO] Not yet included in svMultiPhysics's restart/checkpoint files
-    /// (see output.cpp/initialize.cpp's write_restart/init_from_bin and
-    /// recLn sizing) -- a restart will currently reinitialize this history
-    /// rather than resuming it.
+    /// Both are in the restart files (def_diffu::write_restart_history(),
+    /// read_restart_history(); part of recLn), so a continued simulation
+    /// resumes the history.
     std::map<std::string, std::vector<double>> ccbActiveCmmGandrHistory;
     std::map<std::string, std::vector<double>> ccbActiveCmmGandrHistoryUpdated;
 

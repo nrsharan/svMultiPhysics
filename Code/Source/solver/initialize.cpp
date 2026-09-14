@@ -13,6 +13,7 @@
 #include "baf_ini.h"
 #include "cep_ion.h"
 #include "consts.h"
+#include "def_diffu.h"
 #include "fs.h"
 #include "lhsa.h"
 #include "mat_fun.h"
@@ -200,6 +201,12 @@ void init_from_bin(Simulation* simulation, const std::string& fName, std::array<
       com_mod.ib.Ubn = com_mod.ib.Ubo;
     }
     */
+  }
+
+  // The element history of the deformation-diffusion equation, after the
+  // rest of the record (see output::write_restart()).
+  if (!ibFlag) {
+    def_diffu::read_restart_history(com_mod, bin_file);
   }
 
   bin_file.close();
@@ -562,6 +569,9 @@ void initialize(Simulation* simulation, Vector<double>& timeP)
   if (com_mod.ibFlag) {
     i = i + sizeof(double)*(3*nsd + 1) * com_mod.ib.tnNo;
   }
+
+  // The element history of the deformation-diffusion equation.
+  i = i + static_cast<int>(sizeof(double) * def_diffu::restart_history_size(com_mod));
 
   if (cm.seq()) {
     recLn = i;

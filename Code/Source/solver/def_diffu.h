@@ -8,6 +8,9 @@
 #include "ComMod.h"
 #include "SolutionStates.h"
 
+#include <cstddef>
+#include <fstream>
+
 namespace def_diffu {
 
 /// @brief Assemble the coupled deformation-diffusion equation
@@ -48,6 +51,23 @@ std::vector<ace_gen_cmm_smc::PostField> post_fields(const eqType& eq);
 /// is no element state yet -- get 0. Must be called on every processor.
 void nodal_post_data(const ComMod& com_mod, const mshType& lM, const SolutionStates& solutions, const int iEq,
                      Array<double>& values);
+
+/// @brief Number of values of the element history this process adds to its
+/// restart record: the history of every local element of every mesh with
+/// deformation-diffusion elements (ComMod::ccbActiveCmmGandrHistory).
+std::size_t restart_history_size(const ComMod& com_mod);
+
+/// @brief Write this process's element history to its restart record, after
+/// svMultiPhysics's own data: the history of the time step just converged
+/// (ComMod::ccbActiveCmmGandrHistoryUpdated, committed into
+/// ccbActiveCmmGandrHistory only when the next time step starts), mesh by mesh
+/// in the local element order. A restart must use the same number of
+/// processes, as for the rest of the record.
+void write_restart_history(ComMod& com_mod, std::ofstream& restart_file);
+
+/// @brief Read the element history written by write_restart_history() into
+/// both ComMod::ccbActiveCmmGandrHistory and ccbActiveCmmGandrHistoryUpdated.
+void read_restart_history(ComMod& com_mod, std::ifstream& restart_file);
 
 };
 

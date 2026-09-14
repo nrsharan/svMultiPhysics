@@ -60,10 +60,12 @@ in all seven tissue regions, and a drug concentration applied on the walls.
   of every 100th step: displacement, concentration and the element quantities
   MisesStress, SCirc, SAxial, SRadial, W, Growth, Stretch1, Stretch2, nC1,
   nC2, nD1, nD2, DetF, DetFe and DetFg.
-- The element history is not in svMultiPhysics's restart files, so a
-  continued simulation would start growth and remodeling anew; the case
-  writes no restart files and must run in one job (on Elysium, the `cpu`
-  partition allows 7 days).
+- Restart files (svMultiPhysics's, with the element history) are written every
+  500 steps as `stFile_<step>.bin` (`stFile_last.bin` is the latest). To
+  continue after a stop, run the same case with `<Continue_previous_simulation>
+  true </Continue_previous_simulation>` on the same number of processes; it
+  starts from `stFile_last.bin` (copy an earlier `stFile_<step>.bin` there to
+  continue from that step) and adds to the XDMF/HDF5 result files.
 
 Run on Elysium, e.g. on two nodes:
 

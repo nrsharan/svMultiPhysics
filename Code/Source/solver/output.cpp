@@ -5,6 +5,7 @@
 // desined to interface with user.
 
 #include "output.h"
+#include "def_diffu.h"
 #include "utils.h"
 
 #include <cstdio>
@@ -361,6 +362,10 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
         write_uris_data(com_mod, restart_file);
       }
     }
+
+    // The element history of the deformation-diffusion equation, after the
+    // rest of the record (read by init_from_bin()).
+    def_diffu::write_restart_history(com_mod, restart_file);
   }
 
   restart_file.close();

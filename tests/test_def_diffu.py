@@ -1,8 +1,20 @@
 import os
+import re
+import shutil
+import subprocess
 
 import meshio
+import numpy as np
+import pytest
 
-from .conftest import run_with_reference, skip_if_no_frosch, skip_if_no_interface2, skip_if_no_trilinos
+from .conftest import (
+    OVERSUBSCRIBE_FLAG,
+    cpp_exec,
+    run_with_reference,
+    skip_if_no_frosch,
+    skip_if_no_interface2,
+    skip_if_no_trilinos,
+)
 
 # Common folder for all tests in this file
 base_folder = "def_diffu"
@@ -162,3 +174,72 @@ smc_fields = [
 @skip_if_no_trilinos
 def test_hollow_cylinder_short_smc(n_proc):
     run_with_reference(base_folder, "hollow_cylinder_short_smc", smc_fields, n_proc, 10)
+
+
+def simulate(case, results, values, n_proc):
+    """Run the case with the given GeneralSimulationParameters (added if
+    missing), writing the results and restart files to the folder `results`."""
+    with open(os.path.join(case, "solver.xml")) as f:
+        text = f.read()
+    for key, value in dict(values, Save_results_in_folder=results).items():
+        element = "<{0}> {1} </{0}>".format(key, value)
+        pattern = re.compile(r"<{0}>.*?</{0}>".format(key), re.S)
+        if pattern.search(text):
+            text = pattern.sub(lambda match: element, text, count=1)
+        else:
+            text = text.replace("<GeneralSimulationParameters>", "<GeneralSimulationParameters>\n  " + element, 1)
+    name = "restart_test_" + os.path.basename(results) + ".xml"
+    with open(os.path.join(case, name), "w") as f:
+        f.write(text)
+
+    cmd = " ".join(["mpirun", OVERSUBSCRIBE_FLAG if n_proc > 1 else "", "-np", str(n_proc), cpp_exec, name])
+    try:
+        completed = subprocess.run(cmd, cwd=case, shell=True, stderr=subprocess.PIPE, text=True)
+    finally:
+        os.remove(os.path.join(case, name))
+    if completed.returncode != 0:
+        raise RuntimeError("Exit code {}: {}\n".format(completed.returncode, completed.stderr))
+
+
+# A simulation continued from a restart file resumes the element history
+# (def_diffu::write_restart_history()): at its last step it has the result of
+# the simulation without interruption. The smooth-muscle case switches
+# reorientation on at t = 0.4, growth at 1.2 (step 6, growth orientation
+# initialized) and the active response at 1.6 (step 8); it is continued from
+# step 6, exactly at the growth switch-on, and from step 7. The
+# constrained-mixture case likewise.
+@skip_if_no_interface2
+@skip_if_no_trilinos
+@pytest.mark.parametrize("case", ["hollow_cylinder_short_smc", "hollow_cylinder_short"])
+def test_restart_element_history(case, n_proc, tmp_path):
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases", base_folder, case)
+    values = dict(
+        Number_of_time_steps=10,
+        Save_results_to_VTK_format=1,
+        Increment_in_saving_VTK_files=1,
+        Start_saving_after_time_step=1,
+        Increment_in_saving_restart_files=1,
+    )
+
+    full = tmp_path / "full"
+    simulate(folder, str(full), values, n_proc)
+    reference = meshio.read(str(full / "result_010.vtu"))
+
+    for step in (6, 7):
+        run = tmp_path / "from_{}".format(step)
+        run.mkdir()
+        shutil.copy(full / "stFile_{:03d}.bin".format(step), run / "stFile_last.bin")
+        simulate(folder, str(run), dict(values, Continue_previous_simulation="true"), n_proc)
+
+        # It continued from the restart step instead of starting anew.
+        assert not (run / "result_{:03d}.vtu".format(step)).exists()
+        assert (run / "result_{:03d}.vtu".format(step + 1)).exists()
+
+        result = meshio.read(str(run / "result_010.vtu"))
+        assert sorted(result.point_data) == sorted(reference.point_data)
+        for name, expected in reference.point_data.items():
+            scale = max(1.0, float(np.abs(expected).max()))
+            assert np.allclose(result.point_data[name], expected, rtol=1e-8, atol=1e-10 * scale), (
+                "{}: restart at step {}".format(name, step)
+            )
+

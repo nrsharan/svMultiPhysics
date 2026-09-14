@@ -61,7 +61,13 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
   concentration, MisesStress, SCirc, SAxial, SRadial, W, PhiElastin,
   PhiCollagen, PhiSMC, Stretch1, Stretch2, nC1, nC2, nD1, nD2, DetF, DetFe and
   DetFg.
-- No restart files (the element history is not in them): run in one job, e.g.
+- Restart files (svMultiPhysics's, with the element history) are written every
+  500 steps as `stFile_<step>.bin` (`stFile_last.bin` is the latest). To
+  continue after a stop, run the same case with `<Continue_previous_simulation>
+  true </Continue_previous_simulation>` on the same number of processes; it
+  starts from `stFile_last.bin` (copy an earlier `stFile_<step>.bin` there to
+  continue from that step) and adds to the XDMF/HDF5 result files.
+- Run, e.g.
 
 ```
 sbatch --partition=cpu --time=7-00:00:00 --nodes=2 --ntasks=96 --exclusive \
