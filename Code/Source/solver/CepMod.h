@@ -222,7 +222,7 @@ class CepMod
   public:
 
     /// @brief Whether cardiac electrophysiology is solved
-    bool cepEq;
+    bool cepEq = false;
 
     /// @brief Max. dof in cellular activation model
     int nXion = 0;

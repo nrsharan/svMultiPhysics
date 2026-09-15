@@ -553,9 +553,11 @@ void initialize(Simulation* simulation, Vector<double>& timeP)
   if (dFlag) i = 3*tDof;
   if (com_mod.pstEq) i = i + com_mod.nsymd;
   if (com_mod.sstEq) i = i + nsd;
+  // Xion, and with dFlag also cem.Ya_f, Ya_s and Ya_n (one value per node,
+  // allocated for every simulation), as output::write_restart() writes them.
   if (cep_mod.cepEq) {
     i = i + cep_mod.nXion;
-    if (cep_mod.cem.cpld) i = i + 1;
+    if (dFlag) i = i + 3;
   }
   if (com_mod.risFlag) {
     i = i + com_mod.ris.nbrRIS;
