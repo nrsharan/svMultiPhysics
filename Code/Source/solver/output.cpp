@@ -284,9 +284,13 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
   std::ostringstream restart_file(std::ios::out | std::ios::binary);
 
   write_restart_header(com_mod, timeP, restart_file);
+  const auto headerEnd = restart_file.tellp();
   restart_file.write((char*)cplBC.xn.data(), cplBC.xn.msize());
   restart_file.write((char*)Yn.data(), Yn.msize());
   restart_file.write((char*)An.data(), An.msize());
+
+  const auto arraysEnd = restart_file.tellp();
+  std::streampos extrasEnd = arraysEnd;
 
   if (!ibFlag) {
     if (dFlag) {
@@ -354,6 +358,7 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
 
     // The element history of the deformation-diffusion equation, after the
     // rest of the record (read by init_from_bin()).
+    extrasEnd = restart_file.tellp();
     def_diffu::write_restart_history(com_mod, restart_file);
   }
 
@@ -361,7 +366,16 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
   if (record.size() > static_cast<std::size_t>(recLn)) {
     throw std::runtime_error("[write_restart] The restart record of process " + std::to_string(myID) + " has " +
                              std::to_string(record.size()) + " bytes, more than the record length " +
-                             std::to_string(recLn) + ".");
+                             std::to_string(recLn) + ": header " + std::to_string(static_cast<long long>(headerEnd)) +
+                             ", xn/Yn/An " + std::to_string(static_cast<long long>(arraysEnd - headerEnd)) +
+                             ", Dn and extras " + std::to_string(static_cast<long long>(extrasEnd - arraysEnd)) +
+                             " (Dn " + std::to_string(Dn.msize()) + ", Ad " + std::to_string(Ad.msize()) +
+                             ", pS0 " + std::to_string(pS0.msize()) + "; dFlag " + std::to_string(dFlag) +
+                             " sstEq " + std::to_string(sstEq) + " pstEq " + std::to_string(pstEq) +
+                             " cepEq " + std::to_string(cepEq) + " risFlag " + std::to_string(risFlag) +
+                             " urisFlag " + std::to_string(urisFlag) + "), history " +
+                             std::to_string(static_cast<long long>(record.size()) - static_cast<long long>(extrasEnd)) +
+                             "; tnNo " + std::to_string(com_mod.tnNo) + ", tDof " + std::to_string(com_mod.tDof) + ".");
   }
 
   MPI_File file;
