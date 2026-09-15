@@ -345,7 +345,7 @@ std::size_t restart_history_size(const ComMod& com_mod)
   return size;
 }
 
-void write_restart_history(ComMod& com_mod, std::ofstream& restart_file)
+void write_restart_history(ComMod& com_mod, std::ostream& restart_file)
 {
   for (const auto& lM : com_mod.msh) {
     int iEq = -1;

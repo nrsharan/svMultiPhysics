@@ -6,6 +6,8 @@
 
 #include "output.h"
 #include "def_diffu.h"
+
+#include "mpi.h"
 #include "utils.h"
 
 #include <cstdio>
@@ -246,7 +248,6 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
   dmsg << "stFileRepl: " << stFileRepl;
   #endif 
 
-  int fid = 27;
   int myID = cm.tF(cm_mod);
 
   auto fName = stFileName + "_last.bin";
@@ -275,24 +276,12 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
     fName = stFileName + "_" + fName_num + ".bin";
   }
 
-  // Create the file.
+  // Each process's record, at offset (myID - 1) * recLn of the file, is put
+  // together in memory and all records are written with one collective MPI-IO
+  // call. (Writing them from all processes at once with std::ofstream lost
+  // data on Lustre: on 96 processes many records' headers were overwritten.)
   //
-  if (cm.mas(cm_mod)) {
-    int np = cm.np();
-    std::ofstream restart_file(fName, std::ios::out | std::ios::binary);
-    char data{0};
-    for (int i = 0; i < np * recLn; i++) {
-      //restart_file.write((char*)&data, sizeof(char));
-    }
-    restart_file.close();
-  }
-
-  // This call is to block all processors
-  cm.bcast(cm_mod, &fid);
-
-  std::ofstream restart_file(fName, std::ios::out | std::ios::binary | std::ios::in);
-  std::streampos write_pos = (myID - 1) * recLn;
-  restart_file.seekp(write_pos);
+  std::ostringstream restart_file(std::ios::out | std::ios::binary);
 
   write_restart_header(com_mod, timeP, restart_file);
   restart_file.write((char*)cplBC.xn.data(), cplBC.xn.msize());
@@ -368,7 +357,30 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
     def_diffu::write_restart_history(com_mod, restart_file);
   }
 
-  restart_file.close();
+  const std::string record = restart_file.str();
+  if (record.size() > static_cast<std::size_t>(recLn)) {
+    throw std::runtime_error("[write_restart] The restart record of process " + std::to_string(myID) + " has " +
+                             std::to_string(record.size()) + " bytes, more than the record length " +
+                             std::to_string(recLn) + ".");
+  }
+
+  MPI_File file;
+  int error = MPI_File_open(cm.com(), fName.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
+  if (error == MPI_SUCCESS) {
+    // Drop the contents of an existing file of that name.
+    error = MPI_File_set_size(file, 0);
+  }
+  if (error == MPI_SUCCESS) {
+    const MPI_Offset offset = static_cast<MPI_Offset>(myID - 1) * static_cast<MPI_Offset>(recLn);
+    error = MPI_File_write_at_all(file, offset, record.data(), static_cast<int>(record.size()), MPI_BYTE,
+                                  MPI_STATUS_IGNORE);
+  }
+  if (error == MPI_SUCCESS) {
+    error = MPI_File_close(&file);
+  }
+  if (error != MPI_SUCCESS) {
+    throw std::runtime_error("[write_restart] Failed to write the restart file '" + fName + "'.");
+  }
 
   // Create a soft link to the bin file for the last time step.
   //
@@ -378,7 +390,7 @@ void write_restart(Simulation* simulation, std::array<double,3>& timeP, const So
   }
 }
 
-void write_ris_data(ComMod& com_mod, std::ofstream& restart_file)
+void write_ris_data(ComMod& com_mod, std::ostream& restart_file)
 {
   std::vector<char> clsFlagChar(com_mod.ris.clsFlg.size());
 
@@ -389,7 +401,7 @@ void write_ris_data(ComMod& com_mod, std::ofstream& restart_file)
   restart_file.write(clsFlagChar.data(), clsFlagChar.size()*sizeof(char));
 }
 
-void write_uris_data(ComMod& com_mod, std::ofstream& restart_file)
+void write_uris_data(ComMod& com_mod, std::ostream& restart_file)
 {
   Vector<int> urisCnt(com_mod.nUris);
   std::vector<char> urisClsFlagChar(com_mod.nUris);
@@ -403,7 +415,7 @@ void write_uris_data(ComMod& com_mod, std::ofstream& restart_file)
   restart_file.write(urisClsFlagChar.data(), urisClsFlagChar.size()*sizeof(char));
 }
 
-void write_restart_header(ComMod& com_mod, std::array<double,3>& timeP, std::ofstream& restart_file)
+void write_restart_header(ComMod& com_mod, std::array<double,3>& timeP, std::ostream& restart_file)
 {
   auto const cTS = com_mod.cTS;
   auto const time = com_mod.time;

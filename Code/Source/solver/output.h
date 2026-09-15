@@ -49,12 +49,12 @@ void read_restart_header(ComMod& com_mod, std::array<int,7>& tStamp, double& tim
 
 void write_restart(Simulation* simulation, std::array<double,3>& timeP, const SolutionStates& solutions);
 
-void write_restart_header(ComMod& com_mod, std::array<double,3>& timeP, std::ofstream& restart_file);
+void write_restart_header(ComMod& com_mod, std::array<double,3>& timeP, std::ostream& restart_file);
 
 void write_results(ComMod& com_mod, const std::array<double,3>& timeP, const std::string& fName, const bool sstEq, const SolutionStates& solutions);
 
-void write_ris_data(ComMod& com_mod, std::ofstream& restart_file);
-void write_uris_data(ComMod& com_mod, std::ofstream& restart_file);
+void write_ris_data(ComMod& com_mod, std::ostream& restart_file);
+void write_uris_data(ComMod& com_mod, std::ostream& restart_file);
 
 };
 

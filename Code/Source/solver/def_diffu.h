@@ -63,7 +63,7 @@ std::size_t restart_history_size(const ComMod& com_mod);
 /// ccbActiveCmmGandrHistory only when the next time step starts), mesh by mesh
 /// in the local element order. A restart must use the same number of
 /// processes, as for the rest of the record.
-void write_restart_history(ComMod& com_mod, std::ofstream& restart_file);
+void write_restart_history(ComMod& com_mod, std::ostream& restart_file);
 
 /// @brief Read the element history written by write_restart_history() into
 /// both ComMod::ccbActiveCmmGandrHistory and ccbActiveCmmGandrHistoryUpdated.
