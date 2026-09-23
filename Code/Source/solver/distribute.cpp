@@ -343,6 +343,18 @@ void distribute(Simulation* simulation)
       cm.bcast(cm_mod, &segment[0]);
       cm.bcast(cm_mod, &segment[1]);
     }
+
+    // Adaptive time stepping. Every process needs these: Integrator::step()
+    // agrees on a failed time step with a collective operation that only the
+    // processes with adaptiveDt take part in, and every process computes the
+    // time step size of the next attempt from adaptiveDtLimit itself.
+    cm.bcast(cm_mod, &com_mod.adaptiveDt);
+    cm.bcast(cm_mod, &com_mod.adaptiveDtMin);
+    cm.bcast(cm_mod, &com_mod.adaptiveDtCutFactor);
+    cm.bcast(cm_mod, &com_mod.adaptiveDtGrowFactor);
+    cm.bcast(cm_mod, &com_mod.adaptiveDtGrowAfter);
+    cm.bcast(cm_mod, &com_mod.adaptiveDtLimit);
+
     cm.bcast(cm_mod, &com_mod.precompDt);
 
     cm.bcast(cm_mod, &com_mod.zeroAve);

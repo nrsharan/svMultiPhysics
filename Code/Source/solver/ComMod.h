@@ -1837,6 +1837,12 @@ class ComMod {
     /// iteration that reaches <Max_iterations> without converging -- is
     /// repeated from the same state with a smaller step. See main.cpp's
     /// iterate_solution().
+    ///
+    /// This and the adaptiveDt* below are read from the input file by the
+    /// master process and broadcast to the others in distribute.cpp. They
+    /// must be, or the processes take different decisions: the collective
+    /// operation of Integrator::step() is only reached by the processes with
+    /// adaptiveDt, and the others leave them waiting in it.
     bool adaptiveDt = false;
 
     /// @brief The smallest time step size adaptive time stepping may use.
