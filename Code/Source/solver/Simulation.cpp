@@ -109,6 +109,54 @@ void Simulation::set_module_parameters()
     com_mod.nTS = time_segments::number_of_time_steps(com_mod.dtSegments, com_mod.finalTime);
   }
 
+  // Adaptive time stepping: the time step size given for a segment is the
+  // largest step that segment may take, and a time step that fails -- an
+  // element that cannot compute its state, or a Newton iteration that reaches
+  // <Max_iterations> without converging -- is repeated from the same state
+  // with a smaller step (see main.cpp's iterate_solution()). The run then ends
+  // at <Final_time> rather than after nTS time steps, and nTS is only an
+  // estimate: every repeated and every shortened step adds to it.
+  com_mod.adaptiveDt = general.adaptive_time_stepping.value();
+
+  if (com_mod.adaptiveDt) {
+    if (segments.empty()) {
+      throw std::runtime_error("[Simulation] <Adaptive_time_stepping> requires <Add_time_step_segment> "
+          "elements: the <Time_step_size> given for a segment is the largest step it may take.");
+    }
+
+    com_mod.adaptiveDtCutFactor = general.time_step_reduction_factor.value();
+    com_mod.adaptiveDtGrowFactor = general.time_step_increase_factor.value();
+    com_mod.adaptiveDtGrowAfter = general.converged_time_steps_before_increase.value();
+
+    if (com_mod.adaptiveDtCutFactor <= 0.0 || com_mod.adaptiveDtCutFactor >= 1.0) {
+      throw std::runtime_error("[Simulation] <Time_step_reduction_factor> must be larger than 0 and smaller than 1.");
+    }
+    if (com_mod.adaptiveDtGrowFactor < 1.0) {
+      throw std::runtime_error("[Simulation] <Time_step_increase_factor> must be at least 1.");
+    }
+
+    double smallest = segments[0][1];
+    for (const auto& segment : segments) {
+      if (segment[1] < smallest) {
+        smallest = segment[1];
+      }
+    }
+
+    com_mod.adaptiveDtMin = general.minimum_time_step_size.defined()
+        ? general.minimum_time_step_size.value() : 1.0e-3 * smallest;
+
+    if (com_mod.adaptiveDtMin <= 0.0) {
+      throw std::runtime_error("[Simulation] <Minimum_time_step_size> must be positive.");
+    }
+    if (com_mod.adaptiveDtMin > smallest) {
+      throw std::runtime_error("[Simulation] <Minimum_time_step_size> is larger than the smallest "
+          "<Time_step_size> of the <Add_time_step_segment> elements.");
+    }
+
+    // The first time step takes the first segment's size.
+    com_mod.adaptiveDtLimit = segments[0][1];
+  }
+
   com_mod.stopTrigName = general.searched_file_name_to_trigger_stop.value();
   com_mod.ichckIEN = general.check_ien_order.value();
   com_mod.saveVTK = general.save_results_to_vtk_format.value();

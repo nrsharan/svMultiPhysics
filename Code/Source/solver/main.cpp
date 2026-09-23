@@ -295,28 +295,9 @@ void iterate_solution(Simulation* simulation)
     // Incrementing time step, hence cTS will be associated with new
     // variables, i.e. An, Yn, and Dn
     //
-    // With time step segments, the time step size depends on the time.
-    if (!com_mod.dtSegments.empty()) {
-      dt = time_segments::next_time_step(com_mod.dtSegments, com_mod.finalTime, time);
-    }
-
     cTS = cTS + 1;
-    time = time + dt;
     cEq = 0;
     std::string cstr = "_cts_" + std::to_string(cTS);
-    #ifdef debug_iterate_solution
-    dmsg << "nITs: " << nITs;
-    dmsg << "cTS: " << cTS;
-    dmsg << "dt: " << dt;
-    dmsg << "time: " << time;
-    dmsg << "mvMsh: " << com_mod.mvMsh;
-    dmsg << "rmsh.isReqd: " << com_mod.rmsh.isReqd;
-    #endif
-
-    for (auto& eq : com_mod.eq) {
-      eq.itr = 0;
-      eq.ok = false;
-    }
 
     // Compute mesh properties to check if remeshing is required
     //
@@ -331,46 +312,132 @@ void iterate_solution(Simulation* simulation)
       }
     }
 
-    // Time segments of the deformation-diffusion equation's domain-data
-    // flags for the new time.
-    def_diffu::advance_time_step(com_mod, cm_mod, solutions);
+    // The time this time step starts from, and the state of the
+    // deformation-diffusion elements at that time: with adaptive time
+    // stepping a time step that fails is repeated from them with a smaller
+    // time step size.
+    const double previousTime = time;
+    def_diffu::StepState stepState;
 
-    // Predictor step
-    #ifdef debug_iterate_solution
-    dmsg << "Predictor step ... " << std::endl;
-    #endif
-    integrator.predictor();
-
-    // Apply Dirichlet BCs strongly
-    //
-    // Modifes
-    //  An - New time derivative of variables
-    //  Yn - New variables
-    //  Dn -  New integrated variables
-    //  com_mod.Ad - Time derivative of displacement
-    //
-    #ifdef debug_iterate_solution
-    dmsg << "Apply Dirichlet BCs strongly ..." << std::endl;
-    #endif
-
-    set_bc::set_bc_dir(com_mod, solutions);
-
-    if (com_mod.urisFlag) {uris::uris_calc_sdf(com_mod);}
-
-    iterate_precomputed_time(simulation, solutions);
-
-    // Inner loop for Newton iteration
-    //
-    #ifdef debug_iterate_solution
-    dmsg << "Starting Newton iteration via Integrator ..." << std::endl;
-    #endif
+    if (com_mod.adaptiveDt) {
+      stepState = def_diffu::save_state(com_mod);
+    }
 
     // Results of this time step are written (to a VTU file, or to the
     // XDMF/HDF5 files)
     const bool save_vtu = com_mod.saveVTK && cTS % com_mod.saveIncr == 0 &&
                           cTS >= com_mod.saveATS;
 
-    integrator.step(save_vtu);
+    // The attempts at this time step: without adaptive time stepping exactly
+    // one, with it one more whenever the time step fails.
+    while (true) {
+      // With time step segments, the time step size depends on the time, and
+      // with adaptive time stepping also on the largest size this step may
+      // take.
+      if (!com_mod.dtSegments.empty()) {
+        dt = time_segments::next_time_step(com_mod.dtSegments, com_mod.finalTime, previousTime,
+                                           com_mod.adaptiveDt ? com_mod.adaptiveDtLimit : 0.0);
+      }
+
+      time = previousTime + dt;
+
+      #ifdef debug_iterate_solution
+      dmsg << "nITs: " << nITs;
+      dmsg << "cTS: " << cTS;
+      dmsg << "dt: " << dt;
+      dmsg << "time: " << time;
+      dmsg << "mvMsh: " << com_mod.mvMsh;
+      dmsg << "rmsh.isReqd: " << com_mod.rmsh.isReqd;
+      #endif
+
+      for (auto& eq : com_mod.eq) {
+        eq.itr = 0;
+        eq.ok = false;
+      }
+
+      // Time segments of the deformation-diffusion equation's domain-data
+      // flags for the new time.
+      def_diffu::advance_time_step(com_mod, cm_mod, solutions);
+
+      // Predictor step
+      #ifdef debug_iterate_solution
+      dmsg << "Predictor step ... " << std::endl;
+      #endif
+      integrator.predictor();
+
+      // Apply Dirichlet BCs strongly
+      //
+      // Modifes
+      //  An - New time derivative of variables
+      //  Yn - New variables
+      //  Dn -  New integrated variables
+      //  com_mod.Ad - Time derivative of displacement
+      //
+      #ifdef debug_iterate_solution
+      dmsg << "Apply Dirichlet BCs strongly ..." << std::endl;
+      #endif
+
+      set_bc::set_bc_dir(com_mod, solutions);
+
+      if (com_mod.urisFlag) {uris::uris_calc_sdf(com_mod);}
+
+      iterate_precomputed_time(simulation, solutions);
+
+      // Inner loop for Newton iteration
+      //
+      #ifdef debug_iterate_solution
+      dmsg << "Starting Newton iteration via Integrator ..." << std::endl;
+      #endif
+
+      integrator.step(save_vtu);
+
+      if (!com_mod.adaptiveDt || !integrator.step_failed()) {
+        break;
+      }
+
+      // This time step failed: an element could not compute its state, or the
+      // Newton iteration reached <Max_iterations> without converging. Repeat
+      // it from the state it started from with a smaller time step size.
+      const std::string reason = !com_mod.elementFailed
+          ? std::string("the Newton iteration did not converge")
+          : (com_mod.elementFailureMessage.empty()
+                 ? std::string("an element of another process could not compute its state")
+                 : com_mod.elementFailureMessage);
+      const double reduced = dt * com_mod.adaptiveDtCutFactor;
+
+      if (reduced < com_mod.adaptiveDtMin &&
+          !time_segments::approx_equal(reduced, com_mod.adaptiveDtMin)) {
+        throw std::runtime_error("[iterate_solution] The time step from t = " +
+            std::to_string(previousTime) + " failed with the smallest time step size that adaptive "
+            "time stepping may use (" + std::to_string(dt) + "): " + reason + ".");
+      }
+
+      if (cm.mas(cm_mod)) {
+        std::cout << " [adaptive] t = " << time << ": the time step of " << dt << " failed ("
+                  << reason << "); repeating it with " << reduced << std::endl;
+      }
+
+      def_diffu::restore_state(com_mod, stepState);
+
+      com_mod.adaptiveDtLimit = reduced;
+      com_mod.adaptiveDtConverged = 0;
+      com_mod.adaptiveDtRepeats = com_mod.adaptiveDtRepeats + 1;
+    }
+
+    // This time step converged. After enough of them in a row the time step
+    // size is increased again, up to the segment's maximum time step size.
+    if (com_mod.adaptiveDt) {
+      com_mod.adaptiveDtConverged = com_mod.adaptiveDtConverged + 1;
+
+      if (com_mod.adaptiveDtConverged >= com_mod.adaptiveDtGrowAfter) {
+        com_mod.adaptiveDtConverged = 0;
+
+        const double maximum = time_segments::segment_time_step(com_mod.dtSegments, time);
+        const double grown = com_mod.adaptiveDtLimit * com_mod.adaptiveDtGrowFactor;
+
+        com_mod.adaptiveDtLimit = grown < maximum ? grown : maximum;
+      }
+    }
 
     #ifdef debug_iterate_solution
     dmsg << ">>> End of Newton iteration" << std::endl;
@@ -467,7 +534,16 @@ void iterate_solution(Simulation* simulation)
 
     cm.bcast(cm_mod, &stopTS);
 
-    const bool reached_stop_time_step = cTS >= stopTS;
+    // With time step segments the run ends at <Final_time>. The number of
+    // time steps is then only an estimate -- with adaptive time stepping a
+    // repeated or shortened step adds to it -- so it does not end the run,
+    // but a time step written to the file that triggers a stop still does.
+    const bool reached_final_time = !com_mod.dtSegments.empty() &&
+        (time > com_mod.finalTime || time_segments::approx_equal(time, com_mod.finalTime));
+
+    const bool reached_stop_time_step = com_mod.dtSegments.empty()
+        ? cTS >= stopTS
+        : (reached_final_time || (stopTS < nTS && cTS >= stopTS));
     const bool is_restart_output_step = cTS % com_mod.stFileIncr == 0;
 
     #ifdef debug_iterate_solution
@@ -562,6 +638,12 @@ void iterate_solution(Simulation* simulation)
     def_diffu::commit_history(com_mod);
 
   } // End of outer loop
+
+  // What adaptive time stepping had to do, for the run's log.
+  if (com_mod.adaptiveDt && cm.mas(cm_mod)) {
+    std::cout << " [adaptive] repeated " << com_mod.adaptiveDtRepeats
+              << " time step(s) with a smaller time step size" << std::endl;
+  }
 
   #ifdef debug_iterate_solution
   dmsg << "End of outer loop" << std::endl;

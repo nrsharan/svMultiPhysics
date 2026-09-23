@@ -26,6 +26,17 @@
   <Add_time_step_segment> <Start_time> 840. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 860. </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
   <Final_time> 1500 </Final_time>
+  <!-- Adaptive time stepping: the size given for a segment above is the
+       largest step that segment may take. A time step that fails -- the
+       element cannot compute its state, or the Newton iteration reaches
+       <Max_iterations> without converging -- is repeated from the state it
+       started from with half the step, down to 1e-4, and after 5 time steps
+       in a row that converge the step is doubled again, up to the segment's
+       size. The first load step and the switch-on of growth, which this case
+       works around with a pressure ramp of 0.005 and growth at 540.01, are
+       both of that kind. -->
+  <Adaptive_time_stepping> true </Adaptive_time_stepping>
+  <Minimum_time_step_size> 1e-4 </Minimum_time_step_size>
   <!-- Spectral radius 0: alpha_f = 1, so the element and the loads are
        evaluated at t_{n+1} as in FEDDLib; without inertia, alpha_f < 1 would
        enforce equilibrium at the intermediate state t_{n+alpha_f}. -->

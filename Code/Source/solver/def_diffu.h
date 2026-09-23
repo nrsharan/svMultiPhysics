@@ -10,8 +10,43 @@
 
 #include <cstddef>
 #include <fstream>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace def_diffu {
+
+/// @brief The state of the deformation-diffusion elements at the start of a
+/// time step: the element history and the domain-data flags with
+/// <Time_segments>. With adaptive time stepping a time step that fails is
+/// repeated from this state with a smaller time step size (see main.cpp's
+/// iterate_solution()), which advance_time_step() and the element would
+/// otherwise not see: it switches the flags on, runs their one-time
+/// initialization and writes the result into the converged history.
+struct StepState {
+  /// @brief The converged element history of every mesh
+  /// (ComMod::ccbActiveCmmGandrHistory).
+  std::map<std::string, std::vector<double>> history;
+
+  /// @brief The trial element history of every mesh
+  /// (ComMod::ccbActiveCmmGandrHistoryUpdated).
+  std::map<std::string, std::vector<double>> historyUpdated;
+
+  /// @brief The value of every domain-data flag with <Time_segments>, in the
+  /// order the equations, domains and flags are visited.
+  std::vector<double> flagValues;
+
+  /// @brief Whether the one-time initialization of every one of those flags
+  /// has run, in the same order.
+  std::vector<char> flagInitialized;
+};
+
+/// @brief The state of the deformation-diffusion elements at the current
+/// time, to repeat a time step from (see StepState).
+StepState save_state(const ComMod& com_mod);
+
+/// @brief Put the state saved by save_state() back.
+void restore_state(ComMod& com_mod, const StepState& state);
 
 /// @brief Assemble the coupled deformation-diffusion equation
 /// (EquationType::phys_def_diffu): a monolithic 4-dof/node (3 displacement +

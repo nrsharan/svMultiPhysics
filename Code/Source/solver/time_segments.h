@@ -23,14 +23,9 @@ inline bool approx_equal(const double a, const double b)
   return std::fabs(a - b) <= 1.0e-8 * std::max(1.0, std::fabs(b));
 }
 
-/// @brief Time step size for the time step that starts at time t_n.
-///
-/// The active segment is the last one whose start time is not after t_n.
-/// Its time step size is used, shortened if needed so that the step ends
-/// exactly at the start of the next segment, or at final_time for the last
-/// segment.
-inline double next_time_step(const std::vector<std::array<double,2>>& segments,
-                             const double final_time, const double t_n)
+/// @brief Index of the segment that is active at time t_n: the last one
+/// whose start time is not after t_n.
+inline int active_segment(const std::vector<std::array<double,2>>& segments, const double t_n)
 {
   int active = 0;
   for (int i = 0; i < static_cast<int>(segments.size()); i++) {
@@ -39,9 +34,40 @@ inline double next_time_step(const std::vector<std::array<double,2>>& segments,
     }
   }
 
+  return active;
+}
+
+/// @brief The time step size given for the segment active at t_n, before it
+/// is shortened at the segment's end. With adaptive time stepping this is
+/// the segment's maximum time step size: the largest step it may take.
+inline double segment_time_step(const std::vector<std::array<double,2>>& segments, const double t_n)
+{
+  return segments[active_segment(segments, t_n)][1];
+}
+
+/// @brief Time step size for the time step that starts at time t_n.
+///
+/// The active segment is the last one whose start time is not after t_n.
+/// Its time step size is used, shortened if needed so that the step ends
+/// exactly at the start of the next segment, or at final_time for the last
+/// segment.
+///
+/// With adaptive time stepping the caller passes the step size it wants to
+/// try in 'limit' (0 for none): the segment's own size is then an upper
+/// bound, so that a segment never takes a larger step than the value given
+/// for it, and the step is still shortened at the segment's end.
+inline double next_time_step(const std::vector<std::array<double,2>>& segments,
+                             const double final_time, const double t_n, const double limit = 0.0)
+{
+  const int active = active_segment(segments, t_n);
+
   const bool last = active + 1 == static_cast<int>(segments.size());
   const double end = last ? final_time : segments[active + 1][0];
   double dt = segments[active][1];
+
+  if (limit > 0.0 && limit < dt) {
+    dt = limit;
+  }
 
   if (t_n + dt > end && !approx_equal(t_n + dt, end)) {
     dt = end - t_n;

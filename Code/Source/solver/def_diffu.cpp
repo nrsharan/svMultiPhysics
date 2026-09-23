@@ -303,33 +303,55 @@ void construct_def_diffu(ComMod& com_mod, CepMod& cep_mod, const mshType& lM, co
       ptr(a) = lM.IEN(a,e);
     }
 
-    auto output = ace_gen_cmm_smc::compute(input);
+    // With adaptive time stepping an element that cannot compute its state
+    // (its local growth or active-stretch iteration does not converge) fails
+    // the time step instead of stopping the simulation: iterate_solution()
+    // repeats it from the same state with a smaller time step size. This
+    // process leaves the element loop; the time step fails on every process
+    // (Integrator::step()), so none of them is left waiting in a collective
+    // operation. Without adaptive time stepping the error stops the
+    // simulation as before.
+    try {
+      auto output = ace_gen_cmm_smc::compute(input);
 
-    lR = 0.0;
-    lK = 0.0;
+      lR = 0.0;
+      lK = 0.0;
 
-    for (int a = 0; a < eNoN; a++) {
-      for (int i = 0; i < dof; i++) {
-        lR(i,a) = output.lR(i,a) + inertia*output.lRdyn(i,a);
-      }
-    }
-
-    for (int a = 0; a < eNoN; a++) {
-      for (int b = 0; b < eNoN; b++) {
-        for (int idx = 0; idx < dof*dof; idx++) {
-          lK(idx,a,b) = afu*output.lKState(idx,a,b) + afv*output.lKRate(idx,a,b) + inertia*am*output.lKMass(idx,a,b);
+      for (int a = 0; a < eNoN; a++) {
+        for (int i = 0; i < dof; i++) {
+          lR(i,a) = output.lR(i,a) + inertia*output.lRdyn(i,a);
         }
       }
-    }
 
-    if (historyLengthPerElement > 0) {
-      std::copy(output.historyUpdated.begin(), output.historyUpdated.end(),
-                meshHistoryUpdated.begin() + static_cast<std::size_t>(e) * historyLengthPerElement);
-    }
+      for (int a = 0; a < eNoN; a++) {
+        for (int b = 0; b < eNoN; b++) {
+          for (int idx = 0; idx < dof*dof; idx++) {
+            lK(idx,a,b) = afu*output.lKState(idx,a,b) + afv*output.lKRate(idx,a,b) + inertia*am*output.lKMass(idx,a,b);
+          }
+        }
+      }
 
-    // meshHistoryUpdated (the trial state from this Newton iteration) is
-    // committed into meshHistory once this time step converges -- see
-    // commit_history(), called from main.cpp's iterate_solution().
+      if (historyLengthPerElement > 0) {
+        std::copy(output.historyUpdated.begin(), output.historyUpdated.end(),
+                  meshHistoryUpdated.begin() + static_cast<std::size_t>(e) * historyLengthPerElement);
+      }
+
+      // meshHistoryUpdated (the trial state from this Newton iteration) is
+      // committed into meshHistory once this time step converges -- see
+      // commit_history(), called from main.cpp's iterate_solution().
+
+    } catch (const std::exception& exception) {
+      if (!com_mod.adaptiveDt) {
+        throw;
+      }
+
+      if (!com_mod.elementFailed) {
+        com_mod.elementFailed = true;
+        com_mod.elementFailureMessage = exception.what();
+      }
+
+      return;
+    }
 
     eq.linear_algebra->assemble(com_mod, eNoN, ptr, lK, lR);
   }
@@ -389,6 +411,72 @@ void read_restart_history(ComMod& com_mod, std::ifstream& restart_file)
 void commit_history(ComMod& com_mod) {
   for (auto& [meshName, updated] : com_mod.ccbActiveCmmGandrHistoryUpdated) {
     com_mod.ccbActiveCmmGandrHistory[meshName] = updated;
+  }
+}
+
+StepState save_state(const ComMod& com_mod)
+{
+  StepState state;
+
+  state.history = com_mod.ccbActiveCmmGandrHistory;
+  state.historyUpdated = com_mod.ccbActiveCmmGandrHistoryUpdated;
+
+  for (int iEq = 0; iEq < com_mod.nEq; iEq++) {
+    const auto& eq = com_mod.eq[iEq];
+
+    if (eq.phys != consts::EquationType::phys_def_diffu) {
+      continue;
+    }
+
+    for (int iDmn = 0; iDmn < eq.nDmn; iDmn++) {
+      const auto& dmn = eq.dmn[iDmn];
+
+      if (dmn.phys != consts::EquationType::phys_def_diffu) {
+        continue;
+      }
+
+      for (const auto& flag : dmn.ccb_active_cmm_gandr_flag_segments) {
+        state.flagValues.push_back(dmn.ccb_active_cmm_gandr_domain_data[flag.index]);
+        state.flagInitialized.push_back(flag.initialized ? 1 : 0);
+      }
+    }
+  }
+
+  return state;
+}
+
+void restore_state(ComMod& com_mod, const StepState& state)
+{
+  com_mod.ccbActiveCmmGandrHistory = state.history;
+  com_mod.ccbActiveCmmGandrHistoryUpdated = state.historyUpdated;
+
+  std::size_t i = 0;
+
+  for (int iEq = 0; iEq < com_mod.nEq; iEq++) {
+    auto& eq = com_mod.eq[iEq];
+
+    if (eq.phys != consts::EquationType::phys_def_diffu) {
+      continue;
+    }
+
+    for (int iDmn = 0; iDmn < eq.nDmn; iDmn++) {
+      auto& dmn = eq.dmn[iDmn];
+
+      if (dmn.phys != consts::EquationType::phys_def_diffu) {
+        continue;
+      }
+
+      for (auto& flag : dmn.ccb_active_cmm_gandr_flag_segments) {
+        if (i >= state.flagValues.size()) {
+          throw std::runtime_error("[def_diffu::restore_state] The saved state has fewer flags than the "
+                                   "equations have; this is a bug.");
+        }
+
+        dmn.ccb_active_cmm_gandr_domain_data[flag.index] = state.flagValues[i];
+        flag.initialized = state.flagInitialized[i] != 0;
+        i++;
+      }
+    }
   }
 }
 

@@ -3097,6 +3097,19 @@ GeneralSimulationParameters::GeneralSimulationParameters() {
 
   set_parameter("Time_step_size", 0.0, !required, time_step_size);
   set_parameter("Final_time", 0.0, !required, final_time);
+
+  // Adaptive time stepping, with the <Add_time_step_segment> elements.
+  set_parameter("Adaptive_time_stepping", false, !required,
+                adaptive_time_stepping);
+  set_parameter("Converged_time_steps_before_increase", 5, !required,
+                converged_time_steps_before_increase, {1, int_inf});
+  set_parameter("Minimum_time_step_size", 0.0, !required,
+                minimum_time_step_size);
+  set_parameter("Time_step_increase_factor", 2.0, !required,
+                time_step_increase_factor);
+  set_parameter("Time_step_reduction_factor", 0.5, !required,
+                time_step_reduction_factor);
+
   set_parameter("Verbose", false, !required, verbose);
   set_parameter("Warning", false, !required, warning);
 }

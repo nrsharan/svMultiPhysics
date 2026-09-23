@@ -49,6 +49,20 @@ public:
   bool step(bool save_results = false);
 
   /**
+   * @brief Whether the last step() failed rather than converged: an element
+   * could not compute its state, or the Newton iteration reached
+   * <Max_iterations> without converging.
+   *
+   * Only set with adaptive time stepping (ComMod::adaptiveDt), where
+   * iterate_solution() repeats the time step with a smaller time step size.
+   * Without it a Newton iteration that reaches <Max_iterations> is accepted
+   * as before, and an element's error stops the simulation.
+   *
+   * @return True if the last step() failed
+   */
+  bool step_failed() const { return step_failed_; }
+
+  /**
    * @brief Perform predictor step for next time step
    *
    * Performs predictor step using generalized-alpha method to estimate
@@ -111,6 +125,13 @@ private:
   /** @brief Newton iteration counter for current time step */
   int newton_count_;
 
+  /** @brief Whether the last step() failed; see step_failed() */
+  bool step_failed_ = false;
+
+  /** @brief Whether an equation reached <Max_iterations> in this time step
+   * without meeting its tolerance */
+  bool newton_exhausted_ = false;
+
   /** @brief Debug output suffix string combining time step and iteration number */
   std::string istr_;
 
@@ -142,6 +163,17 @@ private:
    * @brief Assemble global equations for all meshes
    */
   void assemble_equations();
+
+  /**
+   * @brief Whether an element of any process could not compute its state
+   * (ComMod::elementFailed).
+   *
+   * Collective: every process must call it, and all of them get the same
+   * answer, so that they leave the time step together.
+   *
+   * @return True if an element failed on this or on any other process
+   */
+  bool element_failed_on_any_process();
 
   /**
    * @brief Apply all boundary conditions (Neumann, Dirichlet, CMM, contact, etc.)

@@ -76,6 +76,13 @@ bool Integrator::step(bool save_results) {
   newton_count_ = 1;
   int iEqOld;
 
+  // The state of adaptive time stepping for this time step; see
+  // step_failed().
+  step_failed_ = false;
+  newton_exhausted_ = false;
+  com_mod.elementFailed = false;
+  com_mod.elementFailureMessage.clear();
+
   // Looping over Newton iterations
   while (true) {
     #ifdef debug_integrator_step
@@ -112,6 +119,15 @@ bool Integrator::step(bool save_results) {
 
     // Assemble equations
     assemble_equations();
+
+    // An element that could not compute its state fails the time step, which
+    // iterate_solution() repeats with a smaller time step size. Every process
+    // leaves step() here, so that none of them waits in a collective
+    // operation for one that has left.
+    if (com_mod.adaptiveDt && element_failed_on_any_process()) {
+      step_failed_ = true;
+      return false;
+    }
 
     // Treatment of boundary conditions on faces
     apply_boundary_conditions();
@@ -168,6 +184,15 @@ bool Integrator::step(bool save_results) {
       dmsg << ">>> All OK" << std::endl;
       dmsg << "iEqOld: " << iEqOld + 1;
       #endif
+
+      // An equation that only stopped because it reached <Max_iterations>
+      // has not converged: with adaptive time stepping the time step fails
+      // and iterate_solution() repeats it with a smaller time step size.
+      if (com_mod.adaptiveDt && newton_exhausted_) {
+        step_failed_ = true;
+        return false;
+      }
+
       return true;
     }
 
@@ -229,6 +254,26 @@ void Integrator::set_body_forces() {
 //------------------------
 // assemble_equations
 //------------------------
+bool Integrator::element_failed_on_any_process() {
+  auto& com_mod = simulation_->com_mod;
+  auto& cm = com_mod.cm;
+
+  int failed = com_mod.elementFailed ? 1 : 0;
+
+  if (!cm.seq()) {
+    int any_failed = 0;
+    MPI_Allreduce(&failed, &any_failed, 1, cm_mod::mpint, MPI_MAX, cm.com());
+    failed = any_failed;
+
+    // Every process knows that an element failed, whether or not it was one
+    // of its own: only the processes whose element failed have its message,
+    // and the one that reports the repeated time step need not be among them.
+    com_mod.elementFailed = failed != 0;
+  }
+
+  return failed != 0;
+}
+
 void Integrator::assemble_equations() {
   auto& com_mod = simulation_->com_mod;
   auto& cep_mod = simulation_->get_cep_mod();
@@ -998,6 +1043,12 @@ void Integrator::corrector()
   dmsg << "l3: " << l3;
   dmsg << "l4: " << l4;
   #endif
+
+  // Reaching <Max_iterations> (l1) ends the Newton iteration whether or not
+  // the equation met its tolerance; only the latter is convergence.
+  if (l1 && !((l2 || l3) && l4)) {
+    newton_exhausted_ = true;
+  }
 
   if (l1 || ((l2 || l3) && l4)) {
     eq.ok = true;

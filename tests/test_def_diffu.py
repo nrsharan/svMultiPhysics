@@ -176,11 +176,24 @@ def test_hollow_cylinder_short_smc(n_proc):
     run_with_reference(base_folder, "hollow_cylinder_short_smc", smc_fields, n_proc, 10)
 
 
-def simulate(case, results, values, n_proc):
+def simulate(case, results, values, n_proc, remove=(), insert="", replace=()):
     """Run the case with the given GeneralSimulationParameters (added if
-    missing), writing the results and restart files to the folder `results`."""
+    missing), writing the results and restart files to the folder `results`,
+    and return what it wrote to its standard output.
+
+    The elements named in `remove` are deleted first, the (old, new) pairs in
+    `replace` are substituted once each -- for the elements outside
+    <GeneralSimulationParameters>, such as an equation's <Max_iterations> --
+    and the XML in `insert` is added to <GeneralSimulationParameters>: for the
+    elements that may appear more than once (<Add_time_step_segment>) and for
+    those that another element forbids (<Number_of_time_steps> and
+    <Time_step_size> with time step segments)."""
     with open(os.path.join(case, "solver.xml")) as f:
         text = f.read()
+    for key in remove:
+        text = re.sub(r"\s*<{0}>.*?</{0}>".format(key), "", text, count=1, flags=re.S)
+    for old, new in replace:
+        text = text.replace(old, new, 1)
     for key, value in dict(values, Save_results_in_folder=results).items():
         element = "<{0}> {1} </{0}>".format(key, value)
         pattern = re.compile(r"<{0}>.*?</{0}>".format(key), re.S)
@@ -188,17 +201,23 @@ def simulate(case, results, values, n_proc):
             text = pattern.sub(lambda match: element, text, count=1)
         else:
             text = text.replace("<GeneralSimulationParameters>", "<GeneralSimulationParameters>\n  " + element, 1)
+    if insert:
+        text = text.replace("<GeneralSimulationParameters>",
+                            "<GeneralSimulationParameters>\n  " + insert, 1)
     name = "restart_test_" + os.path.basename(results) + ".xml"
     with open(os.path.join(case, name), "w") as f:
         f.write(text)
 
     cmd = " ".join(["mpirun", OVERSUBSCRIBE_FLAG if n_proc > 1 else "", "-np", str(n_proc), cpp_exec, name])
     try:
-        completed = subprocess.run(cmd, cwd=case, shell=True, stderr=subprocess.PIPE, text=True)
+        completed = subprocess.run(cmd, cwd=case, shell=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True)
     finally:
         os.remove(os.path.join(case, name))
     if completed.returncode != 0:
-        raise RuntimeError("Exit code {}: {}\n".format(completed.returncode, completed.stderr))
+        raise RuntimeError("Exit code {}: {}\n{}".format(completed.returncode, completed.stderr,
+                                                        completed.stdout))
+    return completed.stdout
 
 
 # A simulation continued from a restart file resumes the element history
@@ -242,4 +261,107 @@ def test_restart_element_history(case, n_proc, tmp_path):
             assert np.allclose(result.point_data[name], expected, rtol=1e-8, atol=1e-10 * scale), (
                 "{}: restart at step {}".format(name, step)
             )
+
+
+# The time step segments of a run with adaptive time stepping
+# (<Adaptive_time_stepping>), as the <Time_step_size> of one segment that runs
+# to <Final_time>: its maximum time step size, i.e. the largest step it may take.
+def adaptive_segments(time_step, final_time, **values):
+    segments = [
+        "<Final_time> {} </Final_time>".format(final_time),
+        "<Adaptive_time_stepping> true </Adaptive_time_stepping>",
+    ]
+    segments += ["<{0}> {1} </{0}>".format(key, value) for key, value in values.items()]
+    segments.append(
+        "<Add_time_step_segment> <Start_time> 0.0 </Start_time>"
+        " <Time_step_size> {} </Time_step_size> </Add_time_step_segment>".format(time_step)
+    )
+    return "\n  ".join(segments)
+
+
+# Adaptive time stepping takes the <Time_step_size> of a segment as the
+# largest step that segment may take. A run in which no time step fails takes
+# that step throughout, so it is the run with the fixed time step size of the
+# case, to the last bit.
+@skip_if_no_interface2
+@skip_if_no_trilinos
+@pytest.mark.parametrize("case", ["hollow_cylinder_short_smc", "hollow_cylinder_short"])
+def test_adaptive_time_stepping_unchanged(case, n_proc, tmp_path):
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases", base_folder, case)
+    values = dict(
+        Save_results_to_VTK_format=1,
+        Increment_in_saving_VTK_files=1,
+        Start_saving_after_time_step=1,
+    )
+
+    fixed = tmp_path / "fixed"
+    simulate(folder, str(fixed), dict(values, Number_of_time_steps=10), n_proc)
+
+    adaptive = tmp_path / "adaptive"
+    adaptive_output = simulate(folder, str(adaptive), values, n_proc,
+                               remove=("Number_of_time_steps", "Time_step_size"),
+                               insert=adaptive_segments(0.2, 2.0))
+
+    reference = meshio.read(str(fixed / "result_010.vtu"))
+    result = meshio.read(str(adaptive / "result_010.vtu"))
+
+    assert sorted(result.point_data) == sorted(reference.point_data)
+    for name, expected in reference.point_data.items():
+        scale = max(1.0, float(np.abs(expected).max()))
+        assert np.allclose(result.point_data[name], expected, rtol=1e-8, atol=1e-10 * scale), name
+
+    assert "repeated 0 time step(s)" in adaptive_output
+
+
+# A time step that does not converge is repeated from the state it started
+# from with a smaller time step size, and the run goes on. Here the Newton
+# iteration is the one that fails: <Max_iterations> 4 is not enough for the
+# first step of 0.8, which is repeated with 0.4. The run ends at <Final_time>,
+# which is the only way it can end (it exits with an error otherwise).
+@skip_if_no_interface2
+@skip_if_no_trilinos
+@pytest.mark.parametrize("case", ["hollow_cylinder_short_smc", "hollow_cylinder_short"])
+def test_adaptive_time_stepping_repeats_failed_step(case, n_proc, tmp_path):
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases", base_folder, case)
+
+    output = simulate(
+        folder, str(tmp_path / "adaptive"),
+        dict(Save_results_to_VTK_format=1, Increment_in_saving_VTK_files=1,
+             Start_saving_after_time_step=1),
+        n_proc,
+        remove=("Number_of_time_steps", "Time_step_size"),
+        replace=(("<Max_iterations> 25 </Max_iterations>", "<Max_iterations> 4 </Max_iterations>"),),
+        insert=adaptive_segments(0.8, 2.0, Minimum_time_step_size=0.05),
+    )
+
+    assert "the Newton iteration did not converge); repeating it with" in output
+
+    repeated = int(re.search(r"repeated (\d+) time step\(s\)", output).group(1))
+    assert repeated >= 1
+
+
+# The other way a time step fails: the element cannot compute its state, here
+# with a step of 1.2 that takes the constrained-mixture element from the start
+# of the pressure ramp past the switch-on of growth. Its error names the
+# element, and the run goes on with a smaller time step size.
+@skip_if_no_interface2
+@skip_if_no_trilinos
+def test_adaptive_time_stepping_repeats_failed_element(n_proc, tmp_path):
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases", base_folder,
+                          "hollow_cylinder_short")
+
+    output = simulate(
+        folder, str(tmp_path / "adaptive"),
+        dict(Save_results_to_VTK_format=1, Increment_in_saving_VTK_files=1,
+             Start_saving_after_time_step=1),
+        n_proc,
+        remove=("Number_of_time_steps", "Time_step_size"),
+        insert=adaptive_segments(1.2, 2.4),
+    )
+
+    assert "CCBActiveCMMGandR element failed to converge" in output
+    assert "repeating it with" in output
+
+    repeated = int(re.search(r"repeated (\d+) time step\(s\)", output).group(1))
+    assert repeated >= 1
 

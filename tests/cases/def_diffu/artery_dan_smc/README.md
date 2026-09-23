@@ -39,6 +39,20 @@ in all seven tissue regions, and a drug concentration applied on the walls.
   | [840, 860) | 0.5 | 40 |
   | [860, 1500) | 0.2 | 3200 (drug) |
 
+- Adaptive time stepping (`<Adaptive_time_stepping> true`): every step above
+  is the largest step its segment may take, so the table gives the steps and
+  the step count of a run in which none of them fails. A time step that fails
+  -- the element cannot compute its state, or the Newton iteration reaches
+  `<Max_iterations>` without meeting its tolerance -- is repeated from the
+  state it started from with half the step, down to
+  `<Minimum_time_step_size> 1e-4`, below which the run stops with an error;
+  after 5 time steps in a row that converge the step is doubled again, up to
+  the segment's size. Every repeated step is reported as `[adaptive] t = ...`
+  and their number at the end of the run. An earlier run of this case stopped
+  in the growth phase at t = 718.725 ("Growth: divergence in elem= 281 gp= 4
+  ... DeltaT= 0.025") and had to be repeated from a restart file with the
+  growth step halved throughout; only the steps that fail are halved now.
+
 - Linear solver: GMRES with `trilinos-frosch-block` and
   `../artery_dan/frosch_block.xml`.
 - Structure: quasi-static, `<Include_inertia> false </Include_inertia>`: the

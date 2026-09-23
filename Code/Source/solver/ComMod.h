@@ -1830,6 +1830,52 @@ class ComMod {
     /// @brief Final time, used with dtSegments.
     double finalTime = 0.0;
 
+    /// @brief Adaptive time stepping (GeneralSimulationParameters
+    /// <Adaptive_time_stepping>), which needs dtSegments: the time step size
+    /// given for a segment is the largest step it may take, and a time step
+    /// that fails -- an element that cannot compute its state, or a Newton
+    /// iteration that reaches <Max_iterations> without converging -- is
+    /// repeated from the same state with a smaller step. See main.cpp's
+    /// iterate_solution().
+    bool adaptiveDt = false;
+
+    /// @brief The smallest time step size adaptive time stepping may use.
+    /// A step that fails at this size stops the simulation.
+    double adaptiveDtMin = 0.0;
+
+    /// @brief The factor applied to the time step size of a failed time step.
+    double adaptiveDtCutFactor = 0.5;
+
+    /// @brief The factor applied to the time step size after
+    /// adaptiveDtGrowAfter time steps in a row have converged, up to the
+    /// size given for the segment.
+    double adaptiveDtGrowFactor = 2.0;
+
+    /// @brief The number of time steps in a row that must converge before
+    /// the time step size is increased again.
+    int adaptiveDtGrowAfter = 5;
+
+    /// @brief The largest time step size the next time step may use: the
+    /// state of adaptive time stepping, reduced by a failed step and grown
+    /// back towards the segment's value (0 before the first time step).
+    double adaptiveDtLimit = 0.0;
+
+    /// @brief The number of time steps in a row that have converged.
+    int adaptiveDtConverged = 0;
+
+    /// @brief The number of time steps that have been repeated with a
+    /// smaller time step size, over the whole run.
+    int adaptiveDtRepeats = 0;
+
+    /// @brief Set by an element that cannot compute its state (def_diffu's
+    /// construct_def_diffu()) to make the time step fail on every process,
+    /// with adaptive time stepping; without it the element's error stops the
+    /// simulation as before.
+    bool elementFailed = false;
+
+    /// @brief The message of the element that set elementFailed.
+    std::string elementFailureMessage;
+
     /// @brief Number of initialization time steps
     int nITs = 0;
 

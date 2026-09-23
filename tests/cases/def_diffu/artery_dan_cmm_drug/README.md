@@ -45,6 +45,19 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
   this parameter set the first quasi-static load step of 0.02 diverges
   (Newton overshoots by +38 dB and does not recover); steps of 0.005 and
   0.0025 converge (7, then 4-5 Newton iterations per step).
+- Adaptive time stepping (`<Adaptive_time_stepping> true`): the step of every
+  segment is the largest step that segment may take, and a time step that
+  fails -- the element cannot compute its state, or the Newton iteration
+  reaches `<Max_iterations>` without meeting its tolerance -- is repeated from
+  the state it started from with half the step, down to
+  `<Minimum_time_step_size> 1e-4`, below which the run stops with an error;
+  after 5 time steps in a row that converge the step is doubled again, up to
+  the segment's size. The two places this case works around by hand, the first
+  load step (pressure ramp of 0.005 instead of 0.02) and the switch-on of
+  growth (540.01 instead of 540), are both failures of that kind: with
+  adaptive time stepping they would be repeated with a smaller step instead.
+  The workarounds are kept, so that the run takes the steps the table gives
+  unless something else fails.
 - Time integration: `<Spectral_radius_of_infinite_time_step> 0.0`, i.e.
   alpha_f = 1: the element and the loads are evaluated at t_{n+1}, as for
   `../artery_dan_smc`.

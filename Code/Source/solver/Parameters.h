@@ -1986,6 +1986,39 @@ class EquationParameters : public ParameterLists
 ///   <Simulation_requires_remeshing> true </Simulation_requires_remeshing>
 /// </GeneralSimulationParameters>
 /// \endcode
+///
+/// The time stepping can instead be given as segments: every
+/// 'Add_time_step_segment' has a 'Start_time' and the 'Time_step_size' from
+/// it on, the first of them starts at time 0, and the run ends at
+/// 'Final_time'. 'Number_of_time_steps' and 'Time_step_size' are then not
+/// used.
+///
+/// With 'Adaptive_time_stepping' true a segment's 'Time_step_size' is the
+/// largest step that segment may take. A time step that fails -- an element
+/// that cannot compute its state, or a Newton iteration that reaches the
+/// equation's 'Max_iterations' without meeting its 'Tolerance' -- is repeated
+/// from the state it started from with the time step size multiplied by
+/// 'Time_step_reduction_factor' (0.5), down to 'Minimum_time_step_size' (a
+/// thousandth of the smallest segment's size); a step that fails at that size
+/// stops the run with an error. After 'Converged_time_steps_before_increase'
+/// (5) time steps in a row that converge, the time step size is multiplied by
+/// 'Time_step_increase_factor' (2), up to the segment's size.
+///
+/// \code {.xml}
+/// <GeneralSimulationParameters>
+///   <Final_time> 1500.0 </Final_time>
+///   <Adaptive_time_stepping> true </Adaptive_time_stepping>
+///   <Minimum_time_step_size> 1e-4 </Minimum_time_step_size>
+///   <Add_time_step_segment>
+///     <Start_time> 0.0 </Start_time>
+///     <Time_step_size> 0.02 </Time_step_size>
+///   </Add_time_step_segment>
+///   <Add_time_step_segment>
+///     <Start_time> 1.0 </Start_time>
+///     <Time_step_size> 0.5 </Time_step_size>
+///   </Add_time_step_segment>
+/// </GeneralSimulationParameters>
+/// \endcode
 class GeneralSimulationParameters : public ParameterLists 
 {
   public:
@@ -2020,6 +2053,28 @@ class GeneralSimulationParameters : public ParameterLists
     /// <Add_time_step_segment> elements, in the order given. When given, they
     /// replace Time_step_size and Number_of_time_steps (see Simulation.cpp).
     std::vector<std::array<double,2>> time_step_segments;
+
+    /// Adaptive time stepping, which needs time_step_segments: the time step
+    /// size given for a segment is the largest step it may take, and a time
+    /// step that fails is repeated with a smaller one (see Simulation.cpp and
+    /// main.cpp's iterate_solution()).
+    Parameter<bool> adaptive_time_stepping;
+
+    /// The smallest time step size adaptive time stepping may use; without it
+    /// a thousandth of the smallest segment's size.
+    Parameter<double> minimum_time_step_size;
+
+    /// The factor applied to the time step size of a failed time step.
+    Parameter<double> time_step_reduction_factor;
+
+    /// The factor applied to the time step size after
+    /// converged_time_steps_before_increase time steps in a row have
+    /// converged, up to the size given for the segment.
+    Parameter<double> time_step_increase_factor;
+
+    /// The number of time steps in a row that must converge before the time
+    /// step size is increased again.
+    Parameter<int> converged_time_steps_before_increase;
 
     Parameter<std::string> include_xml;
     Parameter<int> increment_in_saving_restart_files;
