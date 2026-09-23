@@ -74,12 +74,13 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
 - Linear solver: GMRES with `trilinos-frosch-block` and its default FROSch
   settings (coarse basis recomputed for every matrix: the time step varies
   25-fold).
-- Output: `result.xdmf`/`result.h5`, every step: displacement,
+- Output: `result.xdmf`/`result.h5`, every 5 s of simulated time
+  (`<Save_results_every_time>`), about 170 of them: displacement,
   concentration, MisesStress, SCirc, SAxial, SRadial, W, PhiElastin,
   PhiCollagen, PhiSMC, Stretch1, Stretch2, nC1, nC2, nD1, nD2, DetF, DetFe and
   DetFg.
 - Restart files (svMultiPhysics's, with the element history) are written every
-  100 steps as `stFile_<step>.bin` (`stFile_last.bin` is the latest). To
+  500 steps as `stFile_<step>.bin` (`stFile_last.bin` is the latest). To
   continue after a stop, run the same case with `<Continue_previous_simulation>
   true </Continue_previous_simulation>` on the same number of processes; it
   starts from `stFile_last.bin` (copy an earlier `stFile_<step>.bin` there to

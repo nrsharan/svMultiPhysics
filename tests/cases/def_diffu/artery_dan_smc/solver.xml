@@ -37,13 +37,18 @@
   <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
   <Save_results_in_XDMF_format> true </Save_results_in_XDMF_format>
   <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
-  <Increment_in_saving_VTK_files> 1 </Increment_in_saving_VTK_files>
+  <!-- The results every 5 s of simulated time, not every so many time
+       steps: the step size spans four orders of magnitude here, so a step
+       count is a poor measure of a run. The growth phase is 99 % of the time
+       steps and 6 % of the time; every 100th step wrote nothing at all of
+       the active phase, and every step wrote 7 MB x 12000 steps of growth. -->
+  <Save_results_every_time> 5.0 </Save_results_every_time>
   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
 
   <!-- Restart files (with the element history) every 500 steps, kept as
        stFile_<step>.bin: continue with <Continue_previous_simulation> true
        and the same number of processes (see README). -->
-  <Increment_in_saving_restart_files> 100 </Increment_in_saving_restart_files>
+  <Increment_in_saving_restart_files> 500 </Increment_in_saving_restart_files>
 
   <Verbose> 1 </Verbose>
   <Warning> 1 </Warning>

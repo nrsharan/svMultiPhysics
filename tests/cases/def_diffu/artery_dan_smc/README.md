@@ -71,11 +71,12 @@ in all seven tissue regions, and a drug concentration applied on the walls.
   u_{n+alpha_f} but the pressure at t_{n+1}; without inertia, alpha_f < 1
   would enforce equilibrium at the intermediate state.
 - Output: one XDMF/HDF5 pair (`result.xdmf`, `result.h5`) with the results
-  of every step -- the active phase is only eight of them: displacement, concentration and the element quantities
+  of every 5 s of simulated time (<Save_results_every_time>), about 170 of
+  them: displacement, concentration and the element quantities
   MisesStress, SCirc, SAxial, SRadial, W, Growth, Stretch1, Stretch2, nC1,
   nC2, nD1, nD2, DetF, DetFe and DetFg.
 - Restart files (svMultiPhysics's, with the element history) are written every
-  100 steps as `stFile_<step>.bin` (`stFile_last.bin` is the latest). To
+  500 steps as `stFile_<step>.bin` (`stFile_last.bin` is the latest). To
   continue after a stop, run the same case with `<Continue_previous_simulation>
   true </Continue_previous_simulation>` on the same number of processes; it
   starts from `stFile_last.bin` (copy an earlier `stFile_<step>.bin` there to
