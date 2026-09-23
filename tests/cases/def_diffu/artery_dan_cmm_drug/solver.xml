@@ -6,26 +6,23 @@
        element in all seven regions (see README): pressure ramped to 85 mmHg
        over the first second, reorientation, growth and, in the media, the
        active response switched by time segments, and a drug concentration of
-       2 on the inner and outer walls from t = 860.0. -->
+       2 on the inner and outer walls from t = 4660.0. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
-  <!-- Pressure ramp in steps of 0.005 (FEDDLib: 0.02): with this parameter
-       set the first quasi-static load step of 0.02 diverges. Growth
-       switches on at 540.01 (FEDDLib: 540), in the first step of 0.025: in
-       the last step of 0.2, ending at t = 540, the element's growth
-       iteration diverged. -->
-  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.005 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 0.1 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 50. </Start_time> <Time_step_size> 0.15 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 80. </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 110. </Start_time> <Time_step_size> 0.25 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 220. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 240. </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 540. </Start_time> <Time_step_size> 0.025 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 840. </Start_time> <Time_step_size> 0.5 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 860. </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
-  <Final_time> 1500 </Final_time>
+  <!-- Pressure ramp in steps of 0.05, ten times the 0.005 of the earlier
+       schedule: with the corrected elements the larger steps are to be
+       tried, and adaptive time stepping halves the ones that fail. Growth
+       switches on at 4340.01 rather than at the segment's start, where the
+       element's growth iteration diverged in the earlier schedule. -->
+  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.05 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.25 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
+  <Final_time> 5300 </Final_time>
   <!-- Adaptive time stepping: the size given for a segment above is the
        largest step that segment may take. A time step that fails -- the
        element cannot compute its state, the linear solver breaks down, or the
@@ -33,9 +30,9 @@
        repeated from the state it started from with half the step, down to
        1e-4, and after 5 time steps
        in a row that converge the step is doubled again, up to the segment's
-       size. The first load step and the switch-on of growth, which this case
-       works around with a pressure ramp of 0.005 and growth at 540.01, are
-       both of that kind. -->
+       size. The first load step and the switch-on of growth, which this
+       case works around with a smaller pressure ramp step and growth at
+       4340.01, are both of that kind. -->
   <Adaptive_time_stepping> true </Adaptive_time_stepping>
   <Minimum_time_step_size> 1e-4 </Minimum_time_step_size>
   <!-- Spectral radius 0: alpha_f = 1, so the element and the loads are
@@ -46,13 +43,13 @@
   <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
   <Save_results_in_XDMF_format> true </Save_results_in_XDMF_format>
   <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
-  <Increment_in_saving_VTK_files> 100 </Increment_in_saving_VTK_files>
+  <Increment_in_saving_VTK_files> 1 </Increment_in_saving_VTK_files>
   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
 
   <!-- Restart files (with the element history) every 500 steps, kept as
        stFile_<step>.bin: continue with <Continue_previous_simulation> true
        and the same number of processes (see README). -->
-  <Increment_in_saving_restart_files> 500 </Increment_in_saving_restart_files>
+  <Increment_in_saving_restart_files> 100 </Increment_in_saving_restart_files>
 
   <Verbose> 1 </Verbose>
   <Warning> 1 </Warning>
@@ -100,14 +97,14 @@
 
    <!-- Each time step starts from the displacement of the previous one:
         extrapolating it with the velocity at the end of the pressure ramp
-        overshoots when the time step jumps from 0.02 to 0.5 at t = 1. -->
+        overshoots when the time step jumps from 0.05 to 5.0 at t = 1. -->
    <Predictor> same_displacement </Predictor>
 
    <!-- Quasi-static structure: the element's inertia (Rdyn, Mu) is left
         out; the parameters, Density included, are unchanged. -->
    <Include_inertia> false </Include_inertia>
 
-   <!-- Adventitia: reorientationBool [1.0, 20.0) [220.0, 240.0) [840.0, 860.0), growthBool [540.0, 840.0) -->
+   <!-- Adventitia: reorientationBool [1.0, 20.0) [4020.0, 4040.0) [4640.0, 4660.0), growthBool [4340.01, 4640.0) -->
    <Domain id="15" >
       <Integration_code> 18 </Integration_code>
       <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
@@ -186,24 +183,18 @@
         <SMCGrowthBool> 0 </SMCGrowthBool>
         <Time_segments parameter="ReorientationBool">
           <Add_interval> <Start_time> 1.0 </Start_time> <End_time> 20.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 220.0 </Start_time> <End_time> 240.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4020.0 </Start_time> <End_time> 4040.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4640.0 </Start_time> <End_time> 4660.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
-   <!-- Media: reorientationBool [1.0, 20.0) [220.0, 240.0) [840.0, 860.0), growthBool [540.0, 840.0), ActiveBool [20.0, 220.0) [240.0, 540.0) [860.0, 1500.0) -->
+   <!-- Media: reorientationBool [1.0, 20.0) [4020.0, 4040.0) [4640.0, 4660.0), growthBool [4340.01, 4640.0), ActiveBool [20.0, 4020.0) [4040.0, 4340.0) [4660.0, 5300.0) -->
    <Domain id="16" >
       <Integration_code> 18 </Integration_code>
       <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
@@ -282,29 +273,23 @@
         <SMCGrowthBool> 0 </SMCGrowthBool>
         <Time_segments parameter="ReorientationBool">
           <Add_interval> <Start_time> 1.0 </Start_time> <End_time> 20.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 220.0 </Start_time> <End_time> 240.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4020.0 </Start_time> <End_time> 4040.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4640.0 </Start_time> <End_time> 4660.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="ActiveBool" initialization="active_stretches">
-          <Add_interval> <Start_time> 20.0 </Start_time> <End_time> 220.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 240.0 </Start_time> <End_time> 540.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 860.0 </Start_time> <End_time> 1500.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 20.0 </Start_time> <End_time> 4020.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4040.0 </Start_time> <End_time> 4340.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4660.0 </Start_time> <End_time> 5300.0 </End_time> </Add_interval>
         </Time_segments>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
-   <!-- DegenMedia: reorientationBool [1.0, 20.0) [220.0, 240.0) [840.0, 860.0), growthBool [540.0, 840.0), ActiveBool [20.0, 220.0) [240.0, 540.0) [860.0, 1500.0) -->
+   <!-- DegenMedia: reorientationBool [1.0, 20.0) [4020.0, 4040.0) [4640.0, 4660.0), growthBool [4340.01, 4640.0), ActiveBool [20.0, 4020.0) [4040.0, 4340.0) [4660.0, 5300.0) -->
    <Domain id="17" >
       <Integration_code> 18 </Integration_code>
       <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
@@ -383,26 +368,20 @@
         <SMCGrowthBool> 0 </SMCGrowthBool>
         <Time_segments parameter="ReorientationBool">
           <Add_interval> <Start_time> 1.0 </Start_time> <End_time> 20.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 220.0 </Start_time> <End_time> 240.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4020.0 </Start_time> <End_time> 4040.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4640.0 </Start_time> <End_time> 4660.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="ActiveBool" initialization="active_stretches">
-          <Add_interval> <Start_time> 20.0 </Start_time> <End_time> 220.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 240.0 </Start_time> <End_time> 540.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 860.0 </Start_time> <End_time> 1500.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 20.0 </Start_time> <End_time> 4020.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4040.0 </Start_time> <End_time> 4340.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4660.0 </Start_time> <End_time> 5300.0 </End_time> </Add_interval>
         </Time_segments>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
    <!-- Lipid: no switches -->
@@ -482,12 +461,6 @@
         <AlphaBio> 1 </AlphaBio>
         <KSMC> 1 </KSMC>
         <SMCGrowthBool> 0 </SMCGrowthBool>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
    <!-- Calc1: no switches -->
@@ -567,12 +540,6 @@
         <AlphaBio> 1 </AlphaBio>
         <KSMC> 1 </KSMC>
         <SMCGrowthBool> 0 </SMCGrowthBool>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
    <!-- Calc2: no switches -->
@@ -652,15 +619,9 @@
         <AlphaBio> 1 </AlphaBio>
         <KSMC> 1 </KSMC>
         <SMCGrowthBool> 0 </SMCGrowthBool>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
-   <!-- FibCap: reorientationBool [1.0, 20.0) [220.0, 240.0) [840.0, 860.0), growthBool [540.0, 840.0) -->
+   <!-- FibCap: reorientationBool [1.0, 20.0) [4020.0, 4040.0) [4640.0, 4660.0), growthBool [4340.01, 4640.0) -->
    <Domain id="21" >
       <Integration_code> 18 </Integration_code>
       <Subiteration_tolerance> 1e-7 </Subiteration_tolerance>
@@ -739,21 +700,15 @@
         <SMCGrowthBool> 0 </SMCGrowthBool>
         <Time_segments parameter="ReorientationBool">
           <Add_interval> <Start_time> 1.0 </Start_time> <End_time> 20.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 220.0 </Start_time> <End_time> 240.0 </End_time> </Add_interval>
-          <Add_interval> <Start_time> 840.0 </Start_time> <End_time> 860.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4020.0 </Start_time> <End_time> 4040.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4640.0 </Start_time> <End_time> 4660.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="GroundGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
         <Time_segments parameter="SMCGrowthBool" initialization="growth_orientation">
-          <Add_interval> <Start_time> 540.01 </Start_time> <End_time> 840.0 </End_time> </Add_interval>
+          <Add_interval> <Start_time> 4340.01 </Start_time> <End_time> 4640.0 </End_time> </Add_interval>
         </Time_segments>
-        <Rate_acceleration>
-          <End_time> 220.0 </End_time>
-          <Factor> 20.0 </Factor>
-          <Multiplied_parameters> LambdaBarCDotMax LambdaBarCDotMin Eta K3 K4 K7 Beta1 Gamma6 KDotMin KDotMax LambdaBarDotPMin LambdaBarDotPMax </Multiplied_parameters>
-          <Divided_parameters> Gamma2 Gamma5 </Divided_parameters>
-        </Rate_acceleration>
       </CCBActiveCMMGandR>
    </Domain>
 
@@ -828,7 +783,7 @@
    </Add_BC>
 
    <!-- Drug concentration on the inner and outer walls: 0, then 2 from
-        t = 860.0 (conc.dat, a ramp over the last 1e-3 before it). -->
+        t = 4660.0 (conc.dat, a ramp over the last 1e-3 before it). -->
    <Add_BC name="inner" >
       <Type> Dir </Type>
       <Effective_direction> (0, 0, 0, 1) </Effective_direction>
