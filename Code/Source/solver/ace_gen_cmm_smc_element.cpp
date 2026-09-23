@@ -14,6 +14,13 @@
 
 namespace ace_gen_cmm_smc {
 
+void new_error_log_step()
+{
+#ifdef SV_HAVE_INTERFACE2
+  AceGenInterface::newErrorLogStep();
+#endif
+}
+
 namespace {
 
 [[noreturn]] void no_interface2() {

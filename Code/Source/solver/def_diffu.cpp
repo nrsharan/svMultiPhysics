@@ -480,11 +480,21 @@ void restore_state(ComMod& com_mod, const StepState& state)
   }
 }
 
+void flush_error_log()
+{
+  ace_gen_cmm_smc::new_error_log_step();
+}
+
 void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionStates& solutions)
 {
   const double time = com_mod.time;
   const double previous_time = time - com_mod.dt;
   const bool master = com_mod.cm.mas(cm_mod);
+
+  // The messages the elements printed during the previous time step, with
+  // the repeats collapsed (see ace_gen_cmm_smc::new_error_log_step()). Per
+  // attempt, so a step repeated with a smaller size reports again.
+  ace_gen_cmm_smc::new_error_log_step();
 
   for (int iEq = 0; iEq < com_mod.nEq; iEq++) {
     auto& eq = com_mod.eq[iEq];

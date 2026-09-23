@@ -59,6 +59,24 @@ enum class Model {
 /// The XML element holding the parameters of 'model'.
 std::string xml_block_name(Model model);
 
+/// Write the messages the elements have printed since the last call into
+/// ErrorLog.txt, with the repeats collapsed.
+///
+/// Messages that differ only in their numbers are one kind: the first few
+/// of a kind are written out in full and the rest become a count, so an
+/// element that fails the same way at every Gauss point and in every Newton
+/// iteration is a few lines instead of hundreds, while an element that
+/// fails in two different ways still reports both. The collapsing is done
+/// by Interface2 (AceGenInterface::newErrorLogStep()), which knows no
+/// element's message format, so new AceGen elements need no change here.
+///
+/// Called once per time step attempt (def_diffu::advance_time_step), so a
+/// step repeated with a smaller size reports again, and once more when the
+/// run ends (main.cpp's iterate_solution()), since each call writes out
+/// what came before it. Does nothing if svMultiPhysics was built without
+/// Interface2.
+void new_error_log_step();
+
 /// Element metadata queried once at setup time (independent of any
 /// particular element's nodal data).
 struct ElementInfo {

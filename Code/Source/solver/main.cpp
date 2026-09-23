@@ -696,6 +696,11 @@ void iterate_solution(Simulation* simulation)
 
   } // End of outer loop
 
+  // The last time step's element messages: every call writes out what came
+  // before it, so without this one the last step's would stay in the scratch
+  // file (see def_diffu::flush_error_log()).
+  def_diffu::flush_error_log();
+
   // What adaptive time stepping had to do, for the run's log.
   if (com_mod.adaptiveDt && cm.mas(cm_mod)) {
     std::cout << " [adaptive] repeated " << com_mod.adaptiveDtRepeats

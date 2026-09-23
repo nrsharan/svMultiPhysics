@@ -70,6 +70,15 @@ void commit_history(ComMod& com_mod);
 /// first switch-on from the converged state of the previous time step.
 void advance_time_step(ComMod& com_mod, const CmMod& cm_mod, const SolutionStates& solutions);
 
+/// @brief Write the element messages of the time step that has just ended
+/// into ErrorLog.txt, with the repeats collapsed
+/// (ace_gen_cmm_smc::new_error_log_step()).
+///
+/// advance_time_step() does this for every step as it starts, so only the
+/// last step of a run needs this: every call writes out what came before
+/// it. Called from main.cpp's iterate_solution() once the time loop ends.
+void flush_error_log();
+
 /// @brief Output fields of the element post-processing quantities of
 /// equation eq (ace_gen_cmm_smc::post_fields() of its first
 /// deformation-diffusion domain; all its domains use the same element), or
