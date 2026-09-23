@@ -9,12 +9,12 @@
        2 on the inner and outer walls from t = 4660.0. -->
   <Continue_previous_simulation> 0 </Continue_previous_simulation>
   <Number_of_spatial_dimensions> 3 </Number_of_spatial_dimensions>
-  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.2 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.02 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.25 </Time_step_size> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.025 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
   <Final_time> 5300 </Final_time>

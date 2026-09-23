@@ -24,16 +24,16 @@ in all seven tissue regions, and a drug concentration applied on the walls.
   state in 200 s; with the corrected elements (Interface2 464d23f) the active
   response takes steps of a few hundred seconds, so it runs the 4000 s out at
   the true rates instead -- 200 s at 20 times the rate is the 4000 s here.
-- Time stepping: 8 segments, about 1235 steps to t = 5300:
+- Time stepping: 8 segments, about 12080 steps to t = 5300:
 
   | Time | Step | Steps |
   |---|---|---|
-  | [0, 1) | 0.2 | 5 (pressure ramp) |
+  | [0, 1) | 0.02 | 50 (pressure ramp) |
   | [1, 20) | 5 | 4 |
   | [20, 4020) | 500 | 8 (active response, to a steady state) |
   | [4020, 4040) | 5 | 4 |
   | [4040, 4340) | 100 | 3 |
-  | [4340, 4640) | 0.25 | 1200 (growth) |
+  | [4340, 4640) | 0.025 | 12000 (growth) |
   | [4640, 4660) | 5 | 4 |
   | [4660, 5300) | 100 | 7 (drug) |
 

@@ -41,13 +41,12 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
 - Loads as in `../artery_dan_smc` (pressure ramped to 85 mmHg over the first
   second, drug concentration 2 on the walls from t = 4660), no rate
   acceleration, and its time stepping except for the pressure ramp, which
-  takes steps of 0.05 instead of 0.2 (20 steps; about 1250 steps to
-  t = 5300). The earlier schedule needed 0.005 here: with that parameter set
-  the first quasi-static load step of 0.02 diverged (Newton overshoots by
-  +38 dB and does not recover), while 0.005 and 0.0025 converged (7, then
-  4-5 Newton iterations per step). With the corrected elements the ten times
-  larger step is to be tried, and adaptive time stepping halves it if it
-  fails.
+  takes steps of 0.005 instead of 0.02 (200 steps; about 12230 steps to
+  t = 5300). The step here is set by the load increment, not by the element:
+  the first quasi-static load step of 0.02 diverges (Newton overshoots by
+  +38 dB and does not recover), while 0.005 and 0.0025 converge (7, then 4-5
+  Newton iterations per step). The corrected elements do not change that --
+  0.05 and 0.1 both diverged in job 6488988.
 - Adaptive time stepping (`<Adaptive_time_stepping> true`): the step of every
   segment is the largest step that segment may take, and a time step that
   fails -- the element cannot compute its state, the linear solver breaks
