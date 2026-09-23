@@ -24,9 +24,9 @@
   <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
   <Final_time> 5300 </Final_time>
   <!-- Adaptive time stepping: the size given for a segment above is the
-       largest step that segment may take. A time step that fails -- the
-       element cannot compute its state, the linear solver breaks down, or the
-       Newton iteration reaches <Max_iterations> without converging -- is
+       largest step that segment may take. A time step that fails (the
+       element cannot compute its state, the linear solver breaks down, or
+       the Newton iteration reaches <Max_iterations> without converging) is
        repeated from the state it started from with half the step, down to
        1e-4, and after 5 time steps
        in a row that converge the step is doubled again, up to the segment's
