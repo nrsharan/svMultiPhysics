@@ -22,7 +22,7 @@
   <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 25.0 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.05 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Final_time> 5300 </Final_time>
@@ -31,16 +31,20 @@
        element cannot compute its state, the linear solver breaks down, or
        the Newton iteration reaches <Max_iterations> without converging) is
        repeated from the state it started from with half the step, down to
-       1e-4, and after 5 time steps in a row that converge the step is
-       doubled again, up to the segment's size. The growth segment's 25 s is
-       a maximum, not a prescription. The 0.025 s it held before came from a
-       single divergence at t = 718.725 in a run of 2026-09-15, made with the
-       uncorrected element and at a time when a failed step could not be
-       retried at all; it cost 12000 of the run's 12200 time steps. No run
-       since has failed anywhere inside the growth phase, and a step that
-       does fail is now halved rather than fatal. -->
+       1e-4, and after 25 time steps in a row that converge the step is
+       doubled again, up to the segment's size. The growth segment holds
+       0.05, which is what the element turned out to allow. Jobs 6489988 and
+       6489989 were given 25 s there: both took it as their first growth
+       step, failed, and halved their way down to 0.0586 and 0.0488, where
+       they stayed, at the cost of 92 and 124 repeated steps. So the 0.025 s
+       the segment held originally was conservative by a factor of two, not
+       by the factor of a thousand that the earlier absence of recorded
+       growth failures had suggested. Growing back after 25 converged steps
+       rather than 5 keeps the probe that would find a larger step if the
+       physics allowed one, at a fifth of the wasted solves. -->
   <Adaptive_time_stepping> true </Adaptive_time_stepping>
   <Minimum_time_step_size> 1e-4 </Minimum_time_step_size>
+  <Converged_time_steps_before_increase> 25 </Converged_time_steps_before_increase>
   <!-- Spectral radius 0: alpha_f = 1, so the element and the loads are
        evaluated at t_{n+1} as in FEDDLib; without inertia, alpha_f < 1 would
        enforce equilibrium at the intermediate state t_{n+alpha_f}. -->
