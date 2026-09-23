@@ -23,9 +23,10 @@
   <Final_time> 1500 </Final_time>
   <!-- Adaptive time stepping: the size given for a segment above is the
        largest step that segment may take. A time step that fails -- the
-       element cannot compute its state, or the Newton iteration reaches
-       <Max_iterations> without converging -- is repeated from the state it
-       started from with half the step, down to 1e-4, and after 5 time steps
+       element cannot compute its state, the linear solver breaks down, or the
+       Newton iteration reaches <Max_iterations> without converging -- is
+       repeated from the state it started from with half the step, down to
+       1e-4, and after 5 time steps
        in a row that converge the step is doubled again, up to the segment's
        size. The growth phase of an earlier run stopped at t = 718.725 with
        "Growth: divergence ... DeltaT= 0.025"; the step of that one time step

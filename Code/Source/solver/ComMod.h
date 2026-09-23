@@ -1833,10 +1833,10 @@ class ComMod {
     /// @brief Adaptive time stepping (GeneralSimulationParameters
     /// <Adaptive_time_stepping>), which needs dtSegments: the time step size
     /// given for a segment is the largest step it may take, and a time step
-    /// that fails -- an element that cannot compute its state, or a Newton
-    /// iteration that reaches <Max_iterations> without converging -- is
-    /// repeated from the same state with a smaller step. See main.cpp's
-    /// iterate_solution().
+    /// that fails -- an element that cannot compute its state, a linear
+    /// solver that breaks down, or a Newton iteration that reaches
+    /// <Max_iterations> without converging -- is repeated from the same state
+    /// with a smaller step. See main.cpp's iterate_solution().
     ///
     /// This and the adaptiveDt* below are read from the input file by the
     /// master process and broadcast to the others in distribute.cpp. They
@@ -1881,6 +1881,15 @@ class ComMod {
 
     /// @brief The message of the element that set elementFailed.
     std::string elementFailureMessage;
+
+    /// @brief Set when the linear solver of a Newton iteration fails (the
+    /// factorization of a direct solver or preconditioner breaks down, say)
+    /// to make the time step fail on every process, with adaptive time
+    /// stepping; without it the error stops the simulation as before.
+    bool solverFailed = false;
+
+    /// @brief The message of the linear solver that set solverFailed.
+    std::string solverFailureMessage;
 
     /// @brief Number of initialization time steps
     int nITs = 0;

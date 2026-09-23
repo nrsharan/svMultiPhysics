@@ -42,8 +42,9 @@ in all seven tissue regions, and a drug concentration applied on the walls.
 - Adaptive time stepping (`<Adaptive_time_stepping> true`): every step above
   is the largest step its segment may take, so the table gives the steps and
   the step count of a run in which none of them fails. A time step that fails
-  -- the element cannot compute its state, or the Newton iteration reaches
-  `<Max_iterations>` without meeting its tolerance -- is repeated from the
+  -- the element cannot compute its state, the linear solver breaks down, or
+  the Newton iteration reaches `<Max_iterations>` without meeting its
+  tolerance -- is repeated from the
   state it started from with half the step, down to
   `<Minimum_time_step_size> 1e-4`, below which the run stops with an error;
   after 5 time steps in a row that converge the step is doubled again, up to

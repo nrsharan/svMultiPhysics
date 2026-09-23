@@ -165,15 +165,16 @@ private:
   void assemble_equations();
 
   /**
-   * @brief Whether an element of any process could not compute its state
-   * (ComMod::elementFailed).
+   * @brief Whether this or any other process reports a failure.
    *
    * Collective: every process must call it, and all of them get the same
-   * answer, so that they leave the time step together.
+   * answer, so that they leave the time step together. A process that calls
+   * it while another does not leaves that other one waiting.
    *
-   * @return True if an element failed on this or on any other process
+   * @param[in] failed Whether this process has failed
+   * @return True if this or any other process has failed
    */
-  bool element_failed_on_any_process();
+  bool failed_on_any_process(bool failed);
 
   /**
    * @brief Apply all boundary conditions (Neumann, Dirichlet, CMM, contact, etc.)

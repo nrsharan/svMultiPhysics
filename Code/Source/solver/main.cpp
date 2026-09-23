@@ -395,14 +395,21 @@ void iterate_solution(Simulation* simulation)
         break;
       }
 
-      // This time step failed: an element could not compute its state, or the
-      // Newton iteration reached <Max_iterations> without converging. Repeat
-      // it from the state it started from with a smaller time step size.
-      const std::string reason = !com_mod.elementFailed
-          ? std::string("the Newton iteration did not converge")
-          : (com_mod.elementFailureMessage.empty()
-                 ? std::string("an element of another process could not compute its state")
-                 : com_mod.elementFailureMessage);
+      // This time step failed: an element could not compute its state, the
+      // linear solver broke down, or the Newton iteration reached
+      // <Max_iterations> without converging. Repeat it from the state it
+      // started from with a smaller time step size.
+      std::string reason("the Newton iteration did not converge");
+
+      if (com_mod.elementFailed) {
+        reason = com_mod.elementFailureMessage.empty()
+            ? std::string("an element of another process could not compute its state")
+            : com_mod.elementFailureMessage;
+      } else if (com_mod.solverFailed) {
+        reason = com_mod.solverFailureMessage.empty()
+            ? std::string("the linear solver of another process failed")
+            : com_mod.solverFailureMessage;
+      }
       const double reduced = dt * com_mod.adaptiveDtCutFactor;
 
       if (reduced < com_mod.adaptiveDtMin &&

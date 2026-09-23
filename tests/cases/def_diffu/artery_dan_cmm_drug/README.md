@@ -47,8 +47,9 @@ Switches (`<Time_segments>`), in regions 15, 16, 17 and 21:
   0.0025 converge (7, then 4-5 Newton iterations per step).
 - Adaptive time stepping (`<Adaptive_time_stepping> true`): the step of every
   segment is the largest step that segment may take, and a time step that
-  fails -- the element cannot compute its state, or the Newton iteration
-  reaches `<Max_iterations>` without meeting its tolerance -- is repeated from
+  fails -- the element cannot compute its state, the linear solver breaks
+  down, or the Newton iteration reaches `<Max_iterations>` without meeting its
+  tolerance -- is repeated from
   the state it started from with half the step, down to
   `<Minimum_time_step_size> 1e-4`, below which the run stops with an error;
   after 5 time steps in a row that converge the step is doubled again, up to

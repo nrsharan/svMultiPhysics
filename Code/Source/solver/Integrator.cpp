@@ -82,6 +82,8 @@ bool Integrator::step(bool save_results) {
   newton_exhausted_ = false;
   com_mod.elementFailed = false;
   com_mod.elementFailureMessage.clear();
+  com_mod.solverFailed = false;
+  com_mod.solverFailureMessage.clear();
 
   // Looping over Newton iterations
   while (true) {
@@ -124,9 +126,17 @@ bool Integrator::step(bool save_results) {
     // iterate_solution() repeats with a smaller time step size. Every process
     // leaves step() here, so that none of them waits in a collective
     // operation for one that has left.
-    if (com_mod.adaptiveDt && element_failed_on_any_process()) {
-      step_failed_ = true;
-      return false;
+    if (com_mod.adaptiveDt) {
+      // Every process learns that an element failed, whether or not it was
+      // one of its own: only the processes whose element failed have its
+      // message, and the one that reports the repeated time step need not be
+      // among them.
+      com_mod.elementFailed = failed_on_any_process(com_mod.elementFailed);
+
+      if (com_mod.elementFailed) {
+        step_failed_ = true;
+        return false;
+      }
     }
 
     // Treatment of boundary conditions on faces
@@ -165,8 +175,33 @@ bool Integrator::step(bool save_results) {
     // Update residual and increment arrays
     update_residual_arrays(eq);
 
-    // Solve equation
-    solve_linear_system();
+    // Solve equation. With adaptive time stepping a linear solver that breaks
+    // down -- a direct solver or preconditioner whose factorization fails on
+    // the matrix of a step that is too large, say -- fails the time step
+    // instead of stopping the simulation, as an element does: the
+    // preconditioner is set up again for every matrix, so the next attempt
+    // starts from a clean one. Every process takes part in the collective
+    // operation, whether or not its own solve failed.
+    if (com_mod.adaptiveDt) {
+      bool solve_failed = false;
+
+      try {
+        solve_linear_system();
+      } catch (const std::exception& exception) {
+        solve_failed = true;
+        com_mod.solverFailureMessage = exception.what();
+      }
+
+      com_mod.solverFailed = failed_on_any_process(solve_failed);
+
+      if (com_mod.solverFailed) {
+        step_failed_ = true;
+        return false;
+      }
+
+    } else {
+      solve_linear_system();
+    }
 
     // Solution is obtained, now updating (Corrector) and check for convergence
     bool all_converged = corrector_and_check_convergence();
@@ -254,24 +289,19 @@ void Integrator::set_body_forces() {
 //------------------------
 // assemble_equations
 //------------------------
-bool Integrator::element_failed_on_any_process() {
+bool Integrator::failed_on_any_process(bool failed) {
   auto& com_mod = simulation_->com_mod;
   auto& cm = com_mod.cm;
 
-  int failed = com_mod.elementFailed ? 1 : 0;
+  int local = failed ? 1 : 0;
 
   if (!cm.seq()) {
-    int any_failed = 0;
-    MPI_Allreduce(&failed, &any_failed, 1, cm_mod::mpint, MPI_MAX, cm.com());
-    failed = any_failed;
-
-    // Every process knows that an element failed, whether or not it was one
-    // of its own: only the processes whose element failed have its message,
-    // and the one that reports the repeated time step need not be among them.
-    com_mod.elementFailed = failed != 0;
+    int any = 0;
+    MPI_Allreduce(&local, &any, 1, cm_mod::mpint, MPI_MAX, cm.com());
+    local = any;
   }
 
-  return failed != 0;
+  return local != 0;
 }
 
 void Integrator::assemble_equations() {

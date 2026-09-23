@@ -1995,8 +1995,9 @@ class EquationParameters : public ParameterLists
 ///
 /// With 'Adaptive_time_stepping' true a segment's 'Time_step_size' is the
 /// largest step that segment may take. A time step that fails -- an element
-/// that cannot compute its state, or a Newton iteration that reaches the
-/// equation's 'Max_iterations' without meeting its 'Tolerance' -- is repeated
+/// that cannot compute its state, a linear solver that breaks down, or a
+/// Newton iteration that reaches the equation's 'Max_iterations' without
+/// meeting its 'Tolerance' -- is repeated
 /// from the state it started from with the time step size multiplied by
 /// 'Time_step_reduction_factor' (0.5), down to 'Minimum_time_step_size' (a
 /// thousandth of the smallest segment's size); a step that fails at that size

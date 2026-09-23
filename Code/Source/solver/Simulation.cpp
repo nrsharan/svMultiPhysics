@@ -111,9 +111,10 @@ void Simulation::set_module_parameters()
 
   // Adaptive time stepping: the time step size given for a segment is the
   // largest step that segment may take, and a time step that fails -- an
-  // element that cannot compute its state, or a Newton iteration that reaches
-  // <Max_iterations> without converging -- is repeated from the same state
-  // with a smaller step (see main.cpp's iterate_solution()). The run then ends
+  // element that cannot compute its state, a linear solver that breaks down,
+  // or a Newton iteration that reaches <Max_iterations> without converging --
+  // is repeated from the same state with a smaller step (see main.cpp's
+  // iterate_solution()). The run then ends
   // at <Final_time> rather than after nTS time steps, and nTS is only an
   // estimate: every repeated and every shortened step adds to it.
   com_mod.adaptiveDt = general.adaptive_time_stepping.value();
