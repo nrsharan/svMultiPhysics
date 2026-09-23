@@ -354,6 +354,7 @@ void distribute(Simulation* simulation)
     cm.bcast(cm_mod, &com_mod.adaptiveDtGrowFactor);
     cm.bcast(cm_mod, &com_mod.adaptiveDtGrowAfter);
     cm.bcast(cm_mod, &com_mod.adaptiveDtLimit);
+    cm.bcast(cm_mod, &com_mod.adaptiveDtDivergenceFactor);
 
     cm.bcast(cm_mod, &com_mod.precompDt);
 

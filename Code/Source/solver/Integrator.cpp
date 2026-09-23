@@ -19,6 +19,7 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <set>
 
@@ -80,6 +81,7 @@ bool Integrator::step(bool save_results) {
   // step_failed().
   step_failed_ = false;
   newton_exhausted_ = false;
+  newton_diverged_ = false;
   com_mod.elementFailed = false;
   com_mod.elementFailureMessage.clear();
   com_mod.solverFailed = false;
@@ -220,10 +222,11 @@ bool Integrator::step(bool save_results) {
       dmsg << "iEqOld: " << iEqOld + 1;
       #endif
 
-      // An equation that only stopped because it reached <Max_iterations>
-      // has not converged: with adaptive time stepping the time step fails
-      // and iterate_solution() repeats it with a smaller time step size.
-      if (com_mod.adaptiveDt && newton_exhausted_) {
+      // An equation that only stopped because it reached <Max_iterations>,
+      // or because its residual diverged, has not converged: with adaptive
+      // time stepping the time step fails and iterate_solution() repeats it
+      // with a smaller time step size.
+      if (com_mod.adaptiveDt && (newton_exhausted_ || newton_diverged_)) {
         step_failed_ = true;
         return false;
       }
@@ -1074,13 +1077,35 @@ void Integrator::corrector()
   dmsg << "l4: " << l4;
   #endif
 
+  // With adaptive time stepping a residual that is not a finite number, or
+  // that has grown far beyond the one this time step started from, ends the
+  // Newton iteration here: the time step is repeated with a smaller size,
+  // and the iterations up to <Max_iterations> would cost a linear solve each
+  // on a state that cannot recover.
+  //
+  // The measure is the residual relative to the first iteration of this time
+  // step (the Ri/R1 of the output), not to the first of the run (r1, which
+  // is Ri/R0): a time step that starts from a much larger residual than the
+  // run did is not diverging. The first step after a switch-on starts at
+  // Ri/R0 of 1e6 and converges from there. Both come from residual norms
+  // that are the same on every process, so they all decide this alike.
+  const double stepRatio = (eq.pNorm > 0.0) ? r1 / eq.pNorm : r1;
+
+  if (com_mod.adaptiveDt) {
+    const double factor = com_mod.adaptiveDtDivergenceFactor;
+
+    if (!std::isfinite(stepRatio) || (factor > 0.0 && stepRatio > factor)) {
+      newton_diverged_ = true;
+    }
+  }
+
   // Reaching <Max_iterations> (l1) ends the Newton iteration whether or not
   // the equation met its tolerance; only the latter is convergence.
   if (l1 && !((l2 || l3) && l4)) {
     newton_exhausted_ = true;
   }
 
-  if (l1 || ((l2 || l3) && l4)) {
+  if (l1 || newton_diverged_ || ((l2 || l3) && l4)) {
     eq.ok = true;
     #ifdef debug_corrector
     dmsg << "eq.ok: " << eq.ok;

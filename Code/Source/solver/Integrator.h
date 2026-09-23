@@ -132,6 +132,11 @@ private:
    * without meeting its tolerance */
   bool newton_exhausted_ = false;
 
+  /** @brief Whether an equation's Newton iteration diverged in this time
+   * step: a residual that is not finite, or that grew beyond
+   * ComMod::adaptiveDtDivergenceFactor times the first iteration's */
+  bool newton_diverged_ = false;
+
   /** @brief Debug output suffix string combining time step and iteration number */
   std::string istr_;
 

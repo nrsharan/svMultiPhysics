@@ -1996,14 +1996,22 @@ class EquationParameters : public ParameterLists
 /// With 'Adaptive_time_stepping' true a segment's 'Time_step_size' is the
 /// largest step that segment may take. A time step that fails -- an element
 /// that cannot compute its state, a linear solver that breaks down, or a
-/// Newton iteration that reaches the equation's 'Max_iterations' without
-/// meeting its 'Tolerance' -- is repeated
+/// Newton iteration that diverges or reaches the equation's 'Max_iterations'
+/// without meeting its 'Tolerance' -- is repeated
 /// from the state it started from with the time step size multiplied by
 /// 'Time_step_reduction_factor' (0.5), down to 'Minimum_time_step_size' (a
 /// thousandth of the smallest segment's size); a step that fails at that size
 /// stops the run with an error. After 'Converged_time_steps_before_increase'
 /// (5) time steps in a row that converge, the time step size is multiplied by
 /// 'Time_step_increase_factor' (2), up to the segment's size.
+///
+/// A diverging Newton iteration is recognised before it reaches
+/// 'Max_iterations': a residual that is not a finite number, or that has
+/// grown to more than 'Newton_divergence_factor' (1e3) times the residual
+/// the same time step started from, fails the time step at once. The iterations after a
+/// divergence cost a linear solve each and cannot recover the step, and the
+/// state they are computed from can be bad enough to hang an element. 0
+/// leaves a diverging time step to 'Max_iterations'.
 ///
 /// \code {.xml}
 /// <GeneralSimulationParameters>
@@ -2067,6 +2075,11 @@ class GeneralSimulationParameters : public ParameterLists
 
     /// The factor applied to the time step size of a failed time step.
     Parameter<double> time_step_reduction_factor;
+
+    /// How far a Newton iteration's residual may grow over the first
+    /// iteration's before the time step is taken to have diverged and is
+    /// repeated with a smaller step; 0 leaves it to Max_iterations.
+    Parameter<double> newton_divergence_factor;
 
     /// The factor applied to the time step size after
     /// converged_time_steps_before_increase time steps in a row have

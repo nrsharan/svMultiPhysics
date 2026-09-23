@@ -128,6 +128,13 @@ void Simulation::set_module_parameters()
     com_mod.adaptiveDtCutFactor = general.time_step_reduction_factor.value();
     com_mod.adaptiveDtGrowFactor = general.time_step_increase_factor.value();
     com_mod.adaptiveDtGrowAfter = general.converged_time_steps_before_increase.value();
+    com_mod.adaptiveDtDivergenceFactor = general.newton_divergence_factor.value();
+
+    if (com_mod.adaptiveDtDivergenceFactor < 0.0 ||
+        (com_mod.adaptiveDtDivergenceFactor > 0.0 && com_mod.adaptiveDtDivergenceFactor <= 1.0)) {
+      throw std::runtime_error("[Simulation] <Newton_divergence_factor> must be larger than 1, or 0 to "
+          "leave a diverging time step to <Max_iterations>.");
+    }
 
     if (com_mod.adaptiveDtCutFactor <= 0.0 || com_mod.adaptiveDtCutFactor >= 1.0) {
       throw std::runtime_error("[Simulation] <Time_step_reduction_factor> must be larger than 0 and smaller than 1.");

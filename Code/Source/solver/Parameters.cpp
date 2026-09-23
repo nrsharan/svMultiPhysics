@@ -3105,6 +3105,8 @@ GeneralSimulationParameters::GeneralSimulationParameters() {
                 converged_time_steps_before_increase, {1, int_inf});
   set_parameter("Minimum_time_step_size", 0.0, !required,
                 minimum_time_step_size);
+  set_parameter("Newton_divergence_factor", 1.0e3, !required,
+                newton_divergence_factor);
   set_parameter("Time_step_increase_factor", 2.0, !required,
                 time_step_increase_factor);
   set_parameter("Time_step_reduction_factor", 0.5, !required,

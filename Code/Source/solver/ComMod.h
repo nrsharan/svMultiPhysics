@@ -1861,6 +1861,17 @@ class ComMod {
     /// the time step size is increased again.
     int adaptiveDtGrowAfter = 5;
 
+    /// @brief How far the residual of a Newton iteration may grow over the
+    /// residual of the first iteration of the same time step before the step
+    /// is taken to have diverged. A residual that is not a finite number, or
+    /// larger than this, fails the time step at once rather than iterating
+    /// on to <Max_iterations>: the iterations after a divergence cost a
+    /// linear solve each and cannot recover the step. Measured against the
+    /// time step's own first residual, not the run's: a step that starts
+    /// from a much larger one, as the first after a switch-on does, is not
+    /// diverging. 0 leaves the time step to <Max_iterations>.
+    double adaptiveDtDivergenceFactor = 1.0e3;
+
     /// @brief The largest time step size the next time step may use: the
     /// state of adaptive time stepping, reduced by a failed step and grown
     /// back towards the segment's value (0 before the first time step).
