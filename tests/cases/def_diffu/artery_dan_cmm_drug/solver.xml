@@ -17,18 +17,17 @@
   <!-- Every segment gives its own <Save_results_every_time>: the phases of
        this run differ too much for one interval. The interval is chosen from
        what the phase does, not from its step size: 0.1 s over the 1 s
-       pressure ramp, 10 s over the 300 s of growth (30 files, where every
-       step would be 12000), 50 s over the long phases. In the 4000 s active
-       phase 50 s samples the contraction closely while the step is still
-       small and then falls back to one file per step as the step grows to
-       500 s, which is the transient sampled finely and the steady state
-       coarsely. About 95 files in all. -->
+       pressure ramp, 10 s over the 300 s of growth, 50 s over the long
+       phases. In the 4000 s active phase 50 s samples the contraction
+       closely while the step is still small and then falls back to one file
+       per step as the step grows, which is the transient sampled finely and
+       the steady state coarsely. About 74 files in all. -->
   <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.005 </Time_step_size> <Save_results_every_time> 0.1 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.025 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 25.0 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Final_time> 5300 </Final_time>
@@ -41,7 +40,11 @@
        in a row that converge the step is doubled again, up to the segment's
        size. The first load step and the switch-on of growth, which this
        case works around with a smaller pressure ramp step and growth at
-       4340.01, are both of that kind. -->
+       4340.01, are both of that kind. The growth segment's 25 s is a
+       maximum, not a prescription: the 0.025 s it held before came from a
+       single divergence in a run of 2026-09-15, made with the uncorrected
+       element and at a time when a failed step could not be retried, and no
+       run since has failed anywhere inside the growth phase. -->
   <Adaptive_time_stepping> true </Adaptive_time_stepping>
   <Minimum_time_step_size> 1e-4 </Minimum_time_step_size>
   <!-- Spectral radius 0: alpha_f = 1, so the element and the loads are
