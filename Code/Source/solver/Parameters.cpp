@@ -3077,6 +3077,8 @@ GeneralSimulationParameters::GeneralSimulationParameters() {
                 save_domain_id_in_every_file);
   set_parameter("Save_results_in_XDMF_format", false, !required,
                 save_results_in_xdmf_format);
+  set_parameter("Save_results_every_time", 0.0, !required,
+                save_results_every_time);
   set_parameter("Save_results_in_folder", "", !required,
                 save_results_in_folder);
   set_parameter("Save_results_to_VTK_format", false, required,

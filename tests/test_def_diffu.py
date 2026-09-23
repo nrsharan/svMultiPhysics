@@ -313,6 +313,31 @@ def test_adaptive_time_stepping_unchanged(case, n_proc, tmp_path):
     assert "repeated 0 time step(s)" in adaptive_output
 
 
+# <Save_results_every_time> writes the results every so much simulated time
+# rather than every so many time steps: the first time step, and from then on
+# the first step that ends at or after each multiple of the interval. The case
+# takes 10 steps of 0.2 to t = 2.0, so an interval of 0.5 writes the steps
+# ending at 0.2, 0.6, 1.0, 1.6 and 2.0 and no others.
+@skip_if_no_interface2
+@skip_if_no_trilinos
+def test_save_results_every_time(n_proc, tmp_path):
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases", base_folder,
+                          "hollow_cylinder_short")
+    results = tmp_path / "every_time"
+
+    simulate(folder, str(results), dict(Number_of_time_steps=10, Save_results_to_VTK_format=1,
+                                        Start_saving_after_time_step=1, Save_results_every_time=0.5),
+             n_proc)
+
+    written = sorted(int(re.search(r"result_(\d+)\.vtu", p).group(1))
+                     for p in os.listdir(str(results)) if re.match(r"result_\d+\.vtu", p))
+    assert written == [1, 3, 5, 8, 10], written
+
+    # the times themselves, to catch an interval that drifts
+    times = [meshio.read(str(results / "result_{:03d}.vtu".format(s))) for s in written]
+    assert len(times) == 5
+
+
 # A time step that does not converge is repeated from the state it started
 # from with a smaller time step size, and the run goes on. Here the Newton
 # iteration is the one that fails: <Max_iterations> 4 is not enough for the

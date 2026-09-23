@@ -172,6 +172,17 @@ void Simulation::set_module_parameters()
   com_mod.saveName = general.name_prefix_of_saved_vtk_files.value();
   com_mod.saveName = chnl_mod.appPath + com_mod.saveName;
   com_mod.saveIncr = general.increment_in_saving_vtk_files.value();
+
+  // Writing the results every so much simulated time rather than every so
+  // many time steps. The first time step is written, and from then on the
+  // first step that ends at or after each multiple of the interval.
+  com_mod.saveTimeIncr = general.save_results_every_time.value();
+  com_mod.nextSaveTime = 0.0;
+
+  if (com_mod.saveTimeIncr < 0.0) {
+    throw std::runtime_error("[Simulation] <Save_results_every_time> cannot be negative; 0 writes the "
+        "results every <Increment_in_saving_VTK_files> time steps instead.");
+  }
   com_mod.saveATS = general.start_saving_after_time_step.value();
   com_mod.saveAve = general.save_averaged_results.value();
   com_mod.alwaysSaveDomainID = general.save_domain_id_in_every_file.value();

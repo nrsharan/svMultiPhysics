@@ -1914,6 +1914,17 @@ class ComMod {
     /// @brief Increment in saving solutions
     int saveIncr = 0;
 
+    /// @brief Write the results every this much simulated time
+    /// (GeneralSimulationParameters <Save_results_every_time>) rather than
+    /// every saveIncr time steps; 0 counts time steps as before. Time steps
+    /// are a poor measure of a run whose step size varies by four orders of
+    /// magnitude: the growth phase of the artery runs is 99 % of their steps
+    /// and 6 % of their time.
+    double saveTimeIncr = 0.0;
+
+    /// @brief The time the next result is written at, with saveTimeIncr.
+    double nextSaveTime = 0.0;
+
     /// @brief Stamp ID to make sure simulation is compatible with stFiles
     std::array<int,7> stamp;
 

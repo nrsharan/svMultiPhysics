@@ -317,6 +317,10 @@ void distribute(Simulation* simulation)
     cm.bcast(cm_mod, &com_mod.stFileIncr);
     cm.bcast(cm_mod, &com_mod.stFileRepl);
     cm.bcast(cm_mod, &com_mod.saveIncr);
+    // Every process must decide alike whether a time step is written: the
+    // writing itself is collective.
+    cm.bcast(cm_mod, &com_mod.saveTimeIncr);
+    cm.bcast(cm_mod, &com_mod.nextSaveTime);
 
     cm.bcast(cm_mod, &com_mod.saveATS);
     cm.bcast(cm_mod, &com_mod.saveAve);

@@ -323,10 +323,12 @@ void iterate_solution(Simulation* simulation)
       stepState = def_diffu::save_state(com_mod);
     }
 
-    // Results of this time step are written (to a VTU file, or to the
-    // XDMF/HDF5 files)
-    const bool save_vtu = com_mod.saveVTK && cTS % com_mod.saveIncr == 0 &&
-                          cTS >= com_mod.saveATS;
+    // Whether the results of this time step are written (to a VTU file, or to
+    // the XDMF/HDF5 files). With <Save_results_every_time> that depends on
+    // the time the step ends at, which is only settled inside the attempt
+    // below -- a repeated attempt ends at a different time -- so it is
+    // decided there.
+    bool save_vtu = false;
 
     // The attempts at this time step: without adaptive time stepping exactly
     // one, with it one more whenever the time step fails.
@@ -340,6 +342,11 @@ void iterate_solution(Simulation* simulation)
       }
 
       time = previousTime + dt;
+
+      save_vtu = com_mod.saveVTK && cTS >= com_mod.saveATS &&
+          (com_mod.saveTimeIncr > 0.0
+               ? (time > com_mod.nextSaveTime || time_segments::approx_equal(time, com_mod.nextSaveTime))
+               : (cTS % com_mod.saveIncr == 0));
 
       #ifdef debug_iterate_solution
       dmsg << "nITs: " << nITs;
@@ -443,6 +450,16 @@ void iterate_solution(Simulation* simulation)
         const double grown = com_mod.adaptiveDtLimit * com_mod.adaptiveDtGrowFactor;
 
         com_mod.adaptiveDtLimit = grown < maximum ? grown : maximum;
+      }
+    }
+
+    // The results of this time step are written: the next ones are due a
+    // whole interval after the time it ended at, whatever the step size does
+    // in between. Only now that the step has been accepted -- a repeated
+    // attempt ends at a different time.
+    if (com_mod.saveTimeIncr > 0.0 && save_vtu) {
+      while (com_mod.nextSaveTime <= time) {
+        com_mod.nextSaveTime = com_mod.nextSaveTime + com_mod.saveTimeIncr;
       }
     }
 

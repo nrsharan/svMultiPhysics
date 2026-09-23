@@ -1957,6 +1957,14 @@ class EquationParameters : public ParameterLists
 /// @brief The GeneralSimulationParameters class stores paramaters for the
 /// 'GeneralSimulationParameters' XML element.
 ///
+/// With 'Save_results_every_time' the results are written every so much
+/// simulated time instead of every 'Increment_in_saving_VTK_files' time
+/// steps: the first time step, and from then on the first step that ends at
+/// or after each multiple of the interval. It is the measure to use with
+/// time step segments, whose step sizes can differ by orders of magnitude --
+/// counting steps then samples the phases with small steps finely and the
+/// phases with large ones not at all. 0 (the default) counts time steps.
+///
 /// With 'Save_results_in_XDMF_format' true (default false), the results of the
 /// time steps selected by 'Save_results_to_VTK_format',
 /// 'Increment_in_saving_VTK_files' and 'Start_saving_after_time_step' are
@@ -2093,6 +2101,13 @@ class GeneralSimulationParameters : public ParameterLists
     Parameter<std::string> include_xml;
     Parameter<int> increment_in_saving_restart_files;
     Parameter<int> increment_in_saving_vtk_files;
+
+    /// Write the results every this much simulated time instead of every
+    /// increment_in_saving_vtk_files time steps; 0 keeps counting steps.
+    /// With time step segments the two are very different: a segment of
+    /// 0.025 and one of 500 spend the same simulated time in 20000 steps and
+    /// in 1.
+    Parameter<double> save_results_every_time;
     Parameter<int> number_of_spatial_dimensions;
     Parameter<int> number_of_initialization_time_steps;
     Parameter<int> start_saving_after_time_step;
