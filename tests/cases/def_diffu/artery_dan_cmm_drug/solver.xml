@@ -14,14 +14,23 @@
        change it (0.05 diverged, and 0.1 after it). Growth switches on at
        4340.01 rather than at the segment's start, where the element's
        growth iteration diverged in the earlier schedule. -->
-  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.005 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.025 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> </Add_time_step_segment>
+  <!-- Every segment gives its own <Save_results_every_time>: the phases of
+       this run differ too much for one interval. The interval is chosen from
+       what the phase does, not from its step size: 0.1 s over the 1 s
+       pressure ramp, 10 s over the 300 s of growth (30 files, where every
+       step would be 12000), 50 s over the long phases. In the 4000 s active
+       phase 50 s samples the contraction closely while the step is still
+       small and then falls back to one file per step as the step grows to
+       500 s, which is the transient sampled finely and the steady state
+       coarsely. About 95 files in all. -->
+  <Add_time_step_segment> <Start_time> 0. </Start_time> <Time_step_size> 0.005 </Time_step_size> <Save_results_every_time> 0.1 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 1. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.025 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Final_time> 5300 </Final_time>
   <!-- Adaptive time stepping: the size given for a segment above is the
        largest step that segment may take. A time step that fails (the
@@ -43,12 +52,14 @@
   <Save_results_to_VTK_format> 1 </Save_results_to_VTK_format>
   <Save_results_in_XDMF_format> true </Save_results_in_XDMF_format>
   <Name_prefix_of_saved_VTK_files> result </Name_prefix_of_saved_VTK_files>
-  <!-- The results every 5 s of simulated time, not every so many time
-       steps: the step size spans four orders of magnitude here, so a step
-       count is a poor measure of a run. The growth phase is 99 % of the time
-       steps and 6 % of the time; every 100th step wrote nothing at all of
-       the active phase, and every step wrote 7 MB x 12000 steps of growth. -->
-  <Save_results_every_time> 5.0 </Save_results_every_time>
+  <!-- The results are written by simulated time, not by step count: the step
+       size spans four orders of magnitude here, so a step count is a poor
+       measure of a run. The growth phase is 99 % of the time steps and 6 % of
+       the time; every 100th step wrote nothing at all of the active phase,
+       and every step wrote 7 MB x 12000 steps of growth. The interval is the
+       one given for each time step segment above; a run-wide
+       <Save_results_every_time> would be the fallback for a segment that
+       gives none. -->
   <Start_saving_after_time_step> 1 </Start_saving_after_time_step>
 
   <!-- Restart files (with the element history) every 500 steps, kept as

@@ -3162,7 +3162,9 @@ void GeneralSimulationParameters::set_values(tinyxml2::XMLElement *xml_element,
       set_values(include_parameters.root_element, true);
 
     } else if (name == "Add_time_step_segment") {
-      std::array<double,2> segment{0.0, 0.0};
+      // {start time, time step size, results interval}; the interval is 0
+      // for a segment that does not give one (see time_segments.h).
+      std::array<double,3> segment{0.0, 0.0, 0.0};
       bool has_start = false;
       bool has_dt = false;
 
@@ -3185,6 +3187,8 @@ void GeneralSimulationParameters::set_values(tinyxml2::XMLElement *xml_element,
         } else if (child_name == "Time_step_size") {
           segment[1] = value;
           has_dt = true;
+        } else if (child_name == "Save_results_every_time") {
+          segment[2] = value;
         } else {
           svmp::raise<svmp::ParseException>("Unknown Add_time_step_segment element '" + child_name + "'.");
         }

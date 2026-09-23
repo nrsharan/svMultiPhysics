@@ -2001,6 +2001,22 @@ class EquationParameters : public ParameterLists
 /// 'Final_time'. 'Number_of_time_steps' and 'Time_step_size' are then not
 /// used.
 ///
+/// A segment may also give a 'Save_results_every_time' of its own, which
+/// overrides the run's while that segment is active. A run whose segments
+/// differ by orders of magnitude in step size is not sampled well by one
+/// interval; a segment of 300 s taken in steps of 0.025 and one of 4000 s
+/// taken in steps of 500 each want their own. A step that ends in a new
+/// segment starts the count again from that segment's start time, so every
+/// segment's first time step is written and no phase begins unrecorded. A
+/// segment that gives no interval falls back to the run's; if the run gives
+/// none either, some segments would be written by time and others by step
+/// count, which is refused.
+///
+/// An interval smaller than the step size the segment reaches writes one
+/// result per time step and no more: a result needs a time step to be
+/// written at, so the interval can make the output sparser than the steps
+/// but never denser.
+///
 /// With 'Adaptive_time_stepping' true a segment's 'Time_step_size' is the
 /// largest step that segment may take. A time step that fails -- an element
 /// that cannot compute its state, a linear solver that breaks down, or a
@@ -2029,10 +2045,12 @@ class EquationParameters : public ParameterLists
 ///   <Add_time_step_segment>
 ///     <Start_time> 0.0 </Start_time>
 ///     <Time_step_size> 0.02 </Time_step_size>
+///     <Save_results_every_time> 0.1 </Save_results_every_time>
 ///   </Add_time_step_segment>
 ///   <Add_time_step_segment>
 ///     <Start_time> 1.0 </Start_time>
 ///     <Time_step_size> 0.5 </Time_step_size>
+///     <Save_results_every_time> 5.0 </Save_results_every_time>
 ///   </Add_time_step_segment>
 /// </GeneralSimulationParameters>
 /// \endcode
@@ -2066,10 +2084,12 @@ class GeneralSimulationParameters : public ParameterLists
     /// Final time, used with time_step_segments.
     Parameter<double> final_time;
 
-    /// Time step segments {start time, time step size} from the
-    /// <Add_time_step_segment> elements, in the order given. When given, they
-    /// replace Time_step_size and Number_of_time_steps (see Simulation.cpp).
-    std::vector<std::array<double,2>> time_step_segments;
+    /// Time step segments {start time, time step size, results interval}
+    /// from the <Add_time_step_segment> elements, in the order given. When
+    /// given, they replace Time_step_size and Number_of_time_steps (see
+    /// Simulation.cpp). The interval is 0 for a segment that gives no
+    /// 'Save_results_every_time' of its own.
+    std::vector<std::array<double,3>> time_step_segments;
 
     /// Adaptive time stepping, which needs time_step_segments: the time step
     /// size given for a segment is the largest step it may take, and a time

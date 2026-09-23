@@ -321,6 +321,7 @@ void distribute(Simulation* simulation)
     // writing itself is collective.
     cm.bcast(cm_mod, &com_mod.saveTimeIncr);
     cm.bcast(cm_mod, &com_mod.nextSaveTime);
+    cm.bcast(cm_mod, &com_mod.saveSegment);
 
     cm.bcast(cm_mod, &com_mod.saveATS);
     cm.bcast(cm_mod, &com_mod.saveAve);
@@ -346,6 +347,9 @@ void distribute(Simulation* simulation)
     for (auto& segment : com_mod.dtSegments) {
       cm.bcast(cm_mod, &segment[0]);
       cm.bcast(cm_mod, &segment[1]);
+      // The segment's own results interval: writing is collective, so every
+      // process must decide alike which time steps are written.
+      cm.bcast(cm_mod, &segment[2]);
     }
 
     // Adaptive time stepping. Every process needs these: Integrator::step()

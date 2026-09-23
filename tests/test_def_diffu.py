@@ -338,6 +338,45 @@ def test_save_results_every_time(n_proc, tmp_path):
     assert len(times) == 5
 
 
+# A time step segment may give an interval of its own, which overrides the
+# run's while it is active: one interval cannot sample a run whose phases
+# differ by orders of magnitude. Two segments of 1 s each, both in steps of
+# 0.125 (a step size and intervals that are exact in binary, so the expected
+# steps do not depend on how the time accumulates):
+#
+#   [0, 1) every 0.5  -> steps 1 (the first step of the segment) and 4
+#   [1, 2) every 0.25 -> steps 8 (the first step of the segment), 10, 12, 14, 16
+#
+# The first step of a segment is always written, so no phase of a run begins
+# unrecorded: at step 8 the count starts again from the segment's start time.
+@skip_if_no_interface2
+@skip_if_no_trilinos
+def test_save_results_every_time_per_segment(n_proc, tmp_path):
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases", base_folder,
+                          "hollow_cylinder_short")
+    results = tmp_path / "per_segment"
+
+    segments = "\n  ".join([
+        "<Final_time> 2.0 </Final_time>",
+        "<Add_time_step_segment> <Start_time> 0.0 </Start_time>"
+        " <Time_step_size> 0.125 </Time_step_size>"
+        " <Save_results_every_time> 0.5 </Save_results_every_time> </Add_time_step_segment>",
+        "<Add_time_step_segment> <Start_time> 1.0 </Start_time>"
+        " <Time_step_size> 0.125 </Time_step_size>"
+        " <Save_results_every_time> 0.25 </Save_results_every_time> </Add_time_step_segment>",
+    ])
+
+    simulate(folder, str(results), dict(Save_results_to_VTK_format=1,
+                                        Start_saving_after_time_step=1),
+             n_proc,
+             remove=("Number_of_time_steps", "Time_step_size"),
+             insert=segments)
+
+    written = sorted(int(re.search(r"result_(\d+)\.vtu", p).group(1))
+                     for p in os.listdir(str(results)) if re.match(r"result_\d+\.vtu", p))
+    assert written == [1, 4, 8, 10, 12, 14, 16], written
+
+
 # A time step that does not converge is repeated from the state it started
 # from with a smaller time step size, and the run goes on. Here the Newton
 # iteration is the one that fails: <Max_iterations> 4 is not enough for the

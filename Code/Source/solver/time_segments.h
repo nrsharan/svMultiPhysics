@@ -23,9 +23,17 @@ inline bool approx_equal(const double a, const double b)
   return std::fabs(a - b) <= 1.0e-8 * std::max(1.0, std::fabs(b));
 }
 
+/// @brief The three values of a time step segment: the time it starts at,
+/// the time step size from it on (with adaptive time stepping the largest
+/// step it may take), and the simulated time between results written in it
+/// (0: the run's <Save_results_every_time>).
+constexpr int SEG_START = 0;
+constexpr int SEG_DT = 1;
+constexpr int SEG_SAVE = 2;
+
 /// @brief Index of the segment that is active at time t_n: the last one
 /// whose start time is not after t_n.
-inline int active_segment(const std::vector<std::array<double,2>>& segments, const double t_n)
+inline int active_segment(const std::vector<std::array<double,3>>& segments, const double t_n)
 {
   int active = 0;
   for (int i = 0; i < static_cast<int>(segments.size()); i++) {
@@ -40,9 +48,24 @@ inline int active_segment(const std::vector<std::array<double,2>>& segments, con
 /// @brief The time step size given for the segment active at t_n, before it
 /// is shortened at the segment's end. With adaptive time stepping this is
 /// the segment's maximum time step size: the largest step it may take.
-inline double segment_time_step(const std::vector<std::array<double,2>>& segments, const double t_n)
+inline double segment_time_step(const std::vector<std::array<double,3>>& segments, const double t_n)
 {
-  return segments[active_segment(segments, t_n)][1];
+  return segments[active_segment(segments, t_n)][SEG_DT];
+}
+
+/// @brief The simulated time between results written in the segment active
+/// at time t, or 'fallback' (the run's <Save_results_every_time>) for a
+/// segment that gives none.
+///
+/// One interval cannot serve a whole run whose segments differ as much as
+/// these do: 300 s taken in steps of 0.025 and 4000 s taken in steps of 500
+/// are not sampled well by the same number.
+inline double segment_save_interval(const std::vector<std::array<double,3>>& segments,
+                                    const double t, const double fallback)
+{
+  const double interval = segments[active_segment(segments, t)][SEG_SAVE];
+
+  return interval > 0.0 ? interval : fallback;
 }
 
 /// @brief Time step size for the time step that starts at time t_n.
@@ -56,14 +79,14 @@ inline double segment_time_step(const std::vector<std::array<double,2>>& segment
 /// try in 'limit' (0 for none): the segment's own size is then an upper
 /// bound, so that a segment never takes a larger step than the value given
 /// for it, and the step is still shortened at the segment's end.
-inline double next_time_step(const std::vector<std::array<double,2>>& segments,
+inline double next_time_step(const std::vector<std::array<double,3>>& segments,
                              const double final_time, const double t_n, const double limit = 0.0)
 {
   const int active = active_segment(segments, t_n);
 
   const bool last = active + 1 == static_cast<int>(segments.size());
-  const double end = last ? final_time : segments[active + 1][0];
-  double dt = segments[active][1];
+  const double end = last ? final_time : segments[active + 1][SEG_START];
+  double dt = segments[active][SEG_DT];
 
   if (limit > 0.0 && limit < dt) {
     dt = limit;
@@ -77,7 +100,7 @@ inline double next_time_step(const std::vector<std::array<double,2>>& segments,
 }
 
 /// @brief Number of time steps from t_start to final_time.
-inline int number_of_time_steps(const std::vector<std::array<double,2>>& segments,
+inline int number_of_time_steps(const std::vector<std::array<double,3>>& segments,
                                 const double final_time, const double t_start = 0.0)
 {
   double t = t_start;

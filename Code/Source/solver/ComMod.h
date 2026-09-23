@@ -1821,11 +1821,13 @@ class ComMod {
     /// @brief Number of time steps
     int nTS = 0;
 
-    /// @brief Time step segments {start time, time step size}
-    /// (GeneralSimulationParameters Add_time_step_segment). When not empty,
-    /// the time step size is taken from these at every time step and the run
-    /// ends at finalTime.
-    std::vector<std::array<double,2>> dtSegments;
+    /// @brief Time step segments {start time, time step size, results
+    /// interval} (GeneralSimulationParameters Add_time_step_segment). When
+    /// not empty, the time step size is taken from these at every time step
+    /// and the run ends at finalTime. The third value is the segment's own
+    /// <Save_results_every_time>, 0 for a segment that gives none (see
+    /// time_segments.h).
+    std::vector<std::array<double,3>> dtSegments;
 
     /// @brief Final time, used with dtSegments.
     double finalTime = 0.0;
@@ -1922,8 +1924,16 @@ class ComMod {
     /// and 6 % of their time.
     double saveTimeIncr = 0.0;
 
-    /// @brief The time the next result is written at, with saveTimeIncr.
+    /// @brief The time the next result is written at, with saveTimeIncr or a
+    /// time step segment's own interval.
     double nextSaveTime = 0.0;
+
+    /// @brief The time step segment nextSaveTime is counted in (-1 before the
+    /// first time step). A segment may give an interval of its own, which
+    /// overrides saveTimeIncr while it is active; when a time step ends in a
+    /// new segment, the count starts again from that segment's start time, so
+    /// that every segment's first time step is written.
+    int saveSegment = -1;
 
     /// @brief Stamp ID to make sure simulation is compatible with stFiles
     std::array<int,7> stamp;

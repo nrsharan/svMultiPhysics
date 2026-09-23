@@ -98,6 +98,36 @@ void Simulation::set_module_parameters()
       if (i > 0 && segments[i][0] <= segments[i-1][0]) {
         throw std::runtime_error("[Simulation] The <Start_time> values of <Add_time_step_segment> elements must increase.");
       }
+      if (segments[i][2] < 0.0) {
+        throw std::runtime_error("[Simulation] The <Save_results_every_time> of an <Add_time_step_segment> "
+            "cannot be negative.");
+      }
+    }
+
+    // A segment that gives no <Save_results_every_time> falls back to the
+    // run's; without that one too it would fall back to counting time steps,
+    // so that one run would write some of its phases by time and others by
+    // step count. That is not a mixture worth allowing silently.
+    const bool run_interval = general.save_results_every_time.defined() &&
+        general.save_results_every_time.value() > 0.0;
+
+    if (!run_interval) {
+      bool some = false;
+      bool all = true;
+
+      for (const auto& segment : segments) {
+        if (segment[2] > 0.0) {
+          some = true;
+        } else {
+          all = false;
+        }
+      }
+
+      if (some && !all) {
+        throw std::runtime_error("[Simulation] Some <Add_time_step_segment> elements give a "
+            "<Save_results_every_time> and others do not, and the run has no <Save_results_every_time> of "
+            "its own to fall back to: give one to every segment, or one for the run.");
+      }
     }
     if (general.final_time.value() <= segments.back()[0]) {
       throw std::runtime_error("[Simulation] <Final_time> must be later than the start of the last <Add_time_step_segment>.");
@@ -176,8 +206,11 @@ void Simulation::set_module_parameters()
   // Writing the results every so much simulated time rather than every so
   // many time steps. The first time step is written, and from then on the
   // first step that ends at or after each multiple of the interval.
+  // A time step segment may give an interval of its own, which overrides
+  // this one while it is active (see main.cpp's iterate_solution()).
   com_mod.saveTimeIncr = general.save_results_every_time.value();
   com_mod.nextSaveTime = 0.0;
+  com_mod.saveSegment = -1;
 
   if (com_mod.saveTimeIncr < 0.0) {
     throw std::runtime_error("[Simulation] <Save_results_every_time> cannot be negative; 0 writes the "

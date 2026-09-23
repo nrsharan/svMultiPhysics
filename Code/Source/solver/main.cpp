@@ -327,8 +327,12 @@ void iterate_solution(Simulation* simulation)
     // the XDMF/HDF5 files). With <Save_results_every_time> that depends on
     // the time the step ends at, which is only settled inside the attempt
     // below -- a repeated attempt ends at a different time -- so it is
-    // decided there.
+    // decided there, together with the interval and the segment it came from.
+    // Those two are only written back to com_mod once the step is accepted.
     bool save_vtu = false;
+    double save_interval = com_mod.saveTimeIncr;
+    int save_segment = com_mod.saveSegment;
+    double next_save_time = com_mod.nextSaveTime;
 
     // The attempts at this time step: without adaptive time stepping exactly
     // one, with it one more whenever the time step fails.
@@ -343,9 +347,29 @@ void iterate_solution(Simulation* simulation)
 
       time = previousTime + dt;
 
+      // The interval between results, from the segment this time step ends
+      // in: a segment may give one of its own, and one interval cannot serve
+      // a run whose segments differ by four orders of magnitude in step size.
+      // A step that ends in a new segment starts the count again from that
+      // segment's start time, so that every segment's first step is written
+      // and no phase of the run begins unrecorded.
+      save_interval = com_mod.saveTimeIncr;
+      save_segment = com_mod.saveSegment;
+      next_save_time = com_mod.nextSaveTime;
+
+      if (!com_mod.dtSegments.empty()) {
+        save_segment = time_segments::active_segment(com_mod.dtSegments, time);
+        save_interval = time_segments::segment_save_interval(com_mod.dtSegments, time,
+                                                             com_mod.saveTimeIncr);
+
+        if (save_segment != com_mod.saveSegment) {
+          next_save_time = com_mod.dtSegments[save_segment][time_segments::SEG_START];
+        }
+      }
+
       save_vtu = com_mod.saveVTK && cTS >= com_mod.saveATS &&
-          (com_mod.saveTimeIncr > 0.0
-               ? (time > com_mod.nextSaveTime || time_segments::approx_equal(time, com_mod.nextSaveTime))
+          (save_interval > 0.0
+               ? (time > next_save_time || time_segments::approx_equal(time, next_save_time))
                : (cTS % com_mod.saveIncr == 0));
 
       #ifdef debug_iterate_solution
@@ -457,9 +481,18 @@ void iterate_solution(Simulation* simulation)
     // whole interval after the time it ended at, whatever the step size does
     // in between. Only now that the step has been accepted -- a repeated
     // attempt ends at a different time.
-    if (com_mod.saveTimeIncr > 0.0 && save_vtu) {
-      while (com_mod.nextSaveTime <= time) {
-        com_mod.nextSaveTime = com_mod.nextSaveTime + com_mod.saveTimeIncr;
+    if (save_interval > 0.0 && save_vtu) {
+      com_mod.saveSegment = save_segment;
+      com_mod.nextSaveTime = next_save_time;
+
+      // Strictly past the time the step ended at, with the tolerance the
+      // result was written on: a step that ends just short of nextSaveTime
+      // is written, because the two are equal up to the tolerance, and
+      // <= would then leave nextSaveTime where it is and write the next
+      // time step as well.
+      while (com_mod.nextSaveTime < time ||
+             time_segments::approx_equal(com_mod.nextSaveTime, time)) {
+        com_mod.nextSaveTime = com_mod.nextSaveTime + save_interval;
       }
     }
 
