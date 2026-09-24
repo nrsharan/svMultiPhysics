@@ -38,9 +38,10 @@ constexpr int iter_width = time_step_width + 4;
 constexpr int number_precision = 3;
 
 // Number of characters in a row of the history table: the fields above,
-// plus the ten spaces and the four brackets separating them.
-constexpr int table_width = eq_width + iter_width + 4 * number_width +
-                            2 * db_width + ls_iter_width + pct_width + 14;
+// plus the ten spaces and the four brackets separating them, and the two
+// columns holding the simulated time and the time step size.
+constexpr int table_width = eq_width + iter_width + 6 * number_width +
+                            2 * db_width + ls_iter_width + pct_width + 16;
 
 // Separator line of the history table.
 std::string separator_line() { return std::string(table_width, '-'); }
@@ -65,7 +66,9 @@ void output_header(const Simulation *simulation, std::array<double, 3> &timeP) {
   std::ostringstream header;
   header << " " << std::left << std::setw(eq_width) << "Eq"
          << " " << std::setw(iter_width) << "     N-i"
-         << " " << std::right << std::setw(number_width) << "T"
+         << " " << std::right << std::setw(number_width) << "time"
+         << " " << std::setw(number_width) << "dt"
+         << " " << std::setw(number_width) << "T"
          << "  " << std::setw(db_width) << "dB"
          << " " << std::setw(number_width) << "Ri/R1"
          << " " << std::setw(number_width) << "Ri/R0"
@@ -161,6 +164,8 @@ void output_result(const Simulation *simulation, std::array<double, 3> &timeP,
   row << " " << std::left << std::setw(eq_width) << eq.sym << " "
       << std::setw(iter_width) << iter.str() << " " << std::right
       << std::scientific << std::setprecision(number_precision)
+      << std::setw(number_width) << com_mod.time << " "
+      << std::setw(number_width) << com_mod.dt << " "
       << std::setw(number_width) << timeP[2] << " " << nl_open
       << std::setw(db_width) << i << " " << std::setw(number_width) << tmp1
       << " " << std::setw(number_width) << tmp << " " << std::setw(number_width)
