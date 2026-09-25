@@ -27,7 +27,7 @@
   <Add_time_step_segment> <Start_time> 20. </Start_time> <Time_step_size> 500 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4020. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4040. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
-  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 0.05 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
+  <Add_time_step_segment> <Start_time> 4340. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 10.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4640. </Start_time> <Time_step_size> 5.0 </Time_step_size> <Save_results_every_time> 5.0 </Save_results_every_time> </Add_time_step_segment>
   <Add_time_step_segment> <Start_time> 4660. </Start_time> <Time_step_size> 100 </Time_step_size> <Save_results_every_time> 50.0 </Save_results_every_time> </Add_time_step_segment>
   <Final_time> 5300 </Final_time>
@@ -40,14 +40,19 @@
        in a row that converge the step is doubled again, up to the segment's
        size. The first load step and the switch-on of growth, which this
        case works around with a smaller pressure ramp step and growth at
-       4340.01, are both of that kind. The growth segment holds 0.05, which
-       is what the element turned out to allow. Job 6489989 was given 25 s
-       there: its first growth step failed at exactly that size and halved
-       its way down to 0.0488, where it stayed, at the cost of 124 repeated
-       steps and 743 "Growth: divergence" messages. Growing back after 25
-       converged steps rather than 5 keeps the probe that would find a
-       larger step if the physics allowed one, at a fifth of the wasted
-       solves. -->
+       4340.01, are both of that kind. The growth segment is given 100, far
+       above any step it has been seen to take, so that the size it can
+       take is found rather than assumed. What is known of the ceiling
+       comes from job 6489989, which was given 25 s here: its first growth
+       step failed at that size and halved its way down to 0.0488, and
+       every later attempt at 0.0977 failed as well, 104 times over t =
+       4340 to 4366, so the ceiling lies between those two sizes. Job
+       6490423 then held 0.05 for the whole 300 s with no growth
+       divergence at all, which shows that 0.05 is safe and says nothing
+       about what is possible later in the phase: the segment's size
+       capped the doubling, so the step was never offered a larger one to
+       refuse. Growing back after 25 converged steps rather than 5 pays a
+       fifth of the wasted solves for the same probe. -->
   <Adaptive_time_stepping> true </Adaptive_time_stepping>
   <Minimum_time_step_size> 1e-4 </Minimum_time_step_size>
   <Converged_time_steps_before_increase> 25 </Converged_time_steps_before_increase>
